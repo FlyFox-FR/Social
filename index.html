@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1">
+<title>Social Ticker 👥</title>
+<meta name="theme-color" content="#000000">
+
+<!-- PWA MANIFEST -->
+<link rel="manifest" href='data:application/manifest+json,{"name":"Beziehungs Tracker","short_name":"SocialTracker","start_url":".","display":"standalone","background_color":"#121212","theme_color":"#e91e63","icons":[{"src":"https://emojicdn.elk.sh/🤝","sizes":"192x192","type":"image/png"}]}'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<!-- LEAFLET MAP CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+
+<!-- Google Font: Fredoka (Rund & Verspielt) -->
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+
+
+<style>
+/* =========================================
+   1. VARIABLES & RESET (Thema angepasst: Pink/Lila statt Blau/Grün)
+   ========================================= */
+*, *::before, *::after { box-sizing: border-box; }
+
+:root{
+    --bg:#f0f2f5;
+    --card:rgba(255, 255, 255, 0.85);
+    --card-solid:#fff;
+    --text:#1c1e21;
+    --btn:#e4e6eb;
+    --hover:#d8dadf;
+    --accent:#e91e63; /* Pink für Social/Herz */
+    --accent-glow: rgba(233, 30, 99, 0.4);
+    --warn-bg:#fff3cd; --warn-text:#856404;
+    --err-bg:#f8d7da; --err-text:#721c24;
+    --sub:#65676b; 
+    --nav-height: 70px;
+    --glass-border: 1px solid rgba(255, 255, 255, 0.6);
+    --shadow: 0 4px 12px rgba(0,0,0,0.08);
+    --paw-color: #ff4081; 
+}
+
+/* === FIX: HÄSSLICHES VIERECK BEIM KLICKEN ENTFERNEN === */
+* {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none; 
+    user-select: none;
+}
+
+input, textarea {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+   
+body.dark {
+    /* TRUE OLED BLACK */
+    --bg: #000000;
+    --card: #000000;
+    --card-solid: #000000;
+    --text: #ffffff;
+    --sub: #a0a0a0;
+    --btn: #1a1a1a;
+    --hover: #333333;
+    --accent: #ff4081; 
+    --accent-glow: rgba(255, 64, 129, 0.4);
+    --warn-bg: #1a1600; --warn-text: #ffd700;
+    --err-bg: #2a0005; --err-text: #ff6b6b;
+    --glass-border: 1px solid #333333;
+    --shadow: none; 
+    --paw-color: #ff80ab; 
+}
+
+body {
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+    background:var(--bg); 
+    color:var(--text); 
+    max-width:980px; 
+    margin:auto; 
+    padding:16px; 
+    padding-bottom:calc(var(--nav-height) + 40px); 
+    position:relative; 
+    overflow-x:hidden; 
+    transition: background 0.3s;
+}
+
+h1 { 
+    margin-top: 5px; margin-bottom: 20px; 
+    font-size: 1.8em; font-weight: 800; letter-spacing: -0.5px; 
+    background: -webkit-linear-gradient(45deg, var(--text), var(--sub)); 
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; 
+    width: fit-content;
+}
+
+/* =========================================
+   2. UTILITIES & ANIMATIONS
+   ========================================= */
+.hidden { display: none !important; }
+.fade-in { animation: fadeIn 0.3s forwards; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* Glass Panel Utility */
+.glass-panel { 
+    background: var(--card); backdrop-filter: blur(12px); 
+    -webkit-backdrop-filter: blur(12px); border: var(--glass-border); 
+    box-shadow: var(--shadow); 
+}
+
+/* Ripple Animation */
+.ripple {
+    position: absolute; border-radius: 50%; transform: scale(0);
+    animation: ripple-anim 0.6s linear; background-color: rgba(255, 255, 255, 0.4);
+    pointer-events: none;
+}
+@keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
+
+/* Floating Particles */
+.particle { 
+    position: fixed; pointer-events: none; font-weight: bold; z-index: 9999; 
+    animation: floatUp 0.8s ease-out forwards; font-size: 20px; 
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2); 
+}
+@keyframes floatUp { 
+    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; } 
+    100% { transform: translate(-50%, -150px) scale(1.5); opacity: 0; } 
+}
+
+/* =========================================
+   3. HEADER & NAVIGATION
+   ========================================= */
+.header-controls { position:absolute; top:16px; right:16px; display:flex; gap:8px; z-index: 100; }
+
+.icon-btn-header {
+    width: 40px; height: 40px; border-radius: 50% !important; border: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; cursor: pointer; transition: transform 0.2s;
+    background: var(--btn); color: var(--text); box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+.icon-btn-header.info { background: var(--btn); color: var(--accent); border: 1px solid var(--accent-glow); }
+.icon-btn-header:active { transform: scale(0.9); }
+
+.list-header { display:flex; gap: 10px; margin-bottom:15px; position: relative; z-index: 5; }
+.search-bar { 
+    flex:1; width:auto; padding:12px 16px; border-radius:25px; border:none; 
+    background:var(--card-solid); color:var(--text); font-size:15px; 
+    box-shadow: var(--shadow); transition: box-shadow 0.2s; margin:0; 
+}
+.search-bar:focus { outline: 2px solid var(--accent); box-shadow: 0 4px 12px var(--accent-glow); }
+
+.bottom-nav {
+    position: fixed; bottom: 20px; left: 20px; right: 20px; height: 65px;
+    background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 35px;
+    display: flex; justify-content: space-evenly; align-items: center;
+    z-index: 9000; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-width: 500px; margin: 0 auto;
+}
+body:not(.dark) .bottom-nav { background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255,255,255,0.6); }
+body.dark .bottom-nav { background: #000000; border: 1px solid #333; box-shadow: 0 -5px 20px rgba(255, 255, 255, 0.05); }
+
+.nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--sub); cursor: pointer; transition: all 0.2s; font-size: 11px; background: none; border: none; padding: 0; position: relative; overflow: hidden; }
+.nav-item .nav-icon { font-size: 22px; margin-bottom: 4px; transition: transform 0.2s; }
+.nav-item.active { color: var(--accent); font-weight: 600; }
+.nav-item.active .nav-icon { transform: translateY(-5px) scale(1.1); filter: drop-shadow(0 4px 5px var(--accent-glow)); }
+
+.view-section { display: none; }
+.view-section.active { display: block; animation: fadeIn 0.3s ease-out; }
+
+/* =========================================
+   4. INPUTS & BUTTONS
+   ========================================= */
+button { font-size:16px; padding:10px 16px; border-radius:14px; border:none; background:var(--btn); color:var(--text); cursor:pointer; transition: all 0.2s; font-weight: 600; }
+button:active { transform: scale(0.96); }
+button:hover { background:var(--hover); }
+
+input,select,textarea { padding:12px 16px; font-size:16px; border-radius:16px; border:2px solid transparent; background:rgba(0,0,0,0.05); color:var(--text); width: 100%; box-sizing: border-box; font-family: inherit; font-weight:600; transition:all 0.2s; }
+input:focus, select:focus, textarea:focus { outline: none; background:var(--card-solid); border-color: var(--accent); box-shadow: 0 4px 12px var(--accent-glow); }
+body.dark input, body.dark select, body.dark textarea { background: rgba(255, 255, 255, 0.1); color: white; }
+
+.action-btn-main {
+    background: var(--accent); color: white; width: 44px; height: 44px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center; font-size: 20px; 
+    box-shadow: 0 4px 10px var(--accent-glow); border: 2px solid var(--card-solid);
+    transition: transform 0.2s; cursor: pointer;
+}
+.action-btn-main:active { transform: scale(0.90); }
+
+.btn-sighting-large {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--accent); color: #fff; border: none; border-radius: 25px;
+    font-weight: bold; font-size: 15px; box-shadow: var(--shadow); cursor: pointer;
+    padding: 12px 16px; transition: transform 0.2s;
+}
+.btn-sighting-large:active { transform: scale(0.96); }
+
+/* Switch Toggle */
+.switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--btn); transition: .4s; border-radius: 34px; }
+.slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+input:checked + .slider { background-color: var(--accent); }
+input:checked + .slider:before { transform: translateX(22px); }
+
+/* =========================================
+   5. LIST VIEW
+   ========================================= */
+.row {
+    display: flex; align-items: stretch; background: var(--card); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.4); border-radius: 18px; margin-bottom: 10px;
+    padding: 0; overflow: hidden; min-height: 72px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+    transition: transform 0.2s;
+}
+body.dark .row { border: 1px solid rgba(255,255,255,0.1); background: rgba(30,30,30,0.6); }
+
+.row-main { flex: 1; display: flex; align-items: center; gap: 12px; padding: 10px 0 10px 12px; cursor: pointer; }
+.row-main:active { background: rgba(0,0,0,0.05); }
+
+.list-visual { width: 54px; height: 54px; flex-shrink: 0; margin-right: 15px; position: relative; }
+.list-thumb-placeholder { width: 100%; height: 100%; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 26px; }
+.list-thumb-img { width: 100%; height: 100%; object-fit: cover; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); }
+
+.list-content { flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.list-name { font-size: 16px; font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-sub-line { font-size: 12px; color: var(--sub); font-weight: 500; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-fav-star { margin-left: 6px; color: #ffb300; font-size: 14px; filter: drop-shadow(0 0 5px rgba(255, 179, 0, 0.4)); }
+
+.count-badge {
+    min-width: 38px; height: 34px; padding: 0 6px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, var(--accent), #9c27b0); color: white; border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2); transform: skewX(-10deg); margin-left: auto; margin-right: 5px; transition: transform 0.2s;
+}
+.count-badge span { transform: skewX(10deg); font-family: 'Fredoka', sans-serif; font-weight: 900; font-size: 15px; }
+
+.row-menu { width: 55px; display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--sub); cursor: pointer; }
+.row-menu:active { background: rgba(0,0,0,0.05); color: var(--accent); }
+
+/* Tags */
+.tag-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 4px 10px 15px 4px; scrollbar-width: none; mask-image: linear-gradient(to right, black 85%, transparent 100%); }
+.tag-pill { background: var(--card); border: 1px solid rgba(255,255,255,0.1); padding: 8px 18px; border-radius: 20px; font-size: 13px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+.tag-pill.active { background: var(--accent); color: white; border-color: transparent; box-shadow: 0 4px 12px var(--accent-glow); }
+
+/* =========================================
+   6. GRID & UI
+   ========================================= */
+.grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; padding-bottom: 20px; }
+.grid-item {
+    height: 160px; background: rgba(28, 28, 30, 0.6); backdrop-filter: blur(15px); border-radius: 24px;
+    position: relative; overflow: hidden; display: flex; align-items: flex-end; padding: 0 !important;
+    border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+}
+.grid-bg-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; transition: transform 0.5s; }
+.grid-overlay { position: absolute; bottom: 0; left: 0; width: 100%; height: 70%; background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%); z-index: 1; pointer-events: none; }
+.grid-info { position: relative; z-index: 2; padding: 12px; padding-right: 45px !important; text-align: left; display: flex; flex-direction: column; }
+.grid-badge-top { position: absolute; top: 10px; right: 10px; background: var(--accent); color: white; font-size: 12px; font-weight: 900; padding: 4px 8px; border-radius: 12px; z-index: 3; }
+.grid-menu-btn { position: absolute; bottom: 0; right: 0; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: rgba(255,255,255,0.9); z-index: 10; cursor: pointer; }
+
+/* MODALS */
+.modal { display: none; position: fixed; z-index: 9995; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
+.modal-content {
+    background-color: var(--card-solid); margin: 5% auto; padding: 25px; border-radius: 24px; width: 90%; max-width: 500px;
+    position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.3); animation: zoomIn 0.2s ease-out; max-height: 85vh; overflow-y: auto;
+}
+@media (max-width: 600px) {
+    .modal-content { margin: 0; position: absolute; bottom: 0; left: 0; width: 100%; max-width: 100%; border-radius: 24px 24px 0 0; animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); padding-bottom: 40px; }
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes zoomIn { from { transform: scale(0.9); opacity:0; } to { transform: scale(1); opacity:1; } }
+
+.close-btn { position: absolute; top: 15px; right: 20px; color: var(--sub); font-size: 24px; width:30px; height:30px; display:flex;align-items:center;justify-content:center; background:var(--btn); border-radius:50%; cursor: pointer; z-index:10; }
+.sheet-handle { width: 50px; height: 6px; background: var(--btn); border-radius: 10px; margin: 0 auto 20px auto; cursor: grab; }
+
+/* BRANDING */
+.app-brand { margin-top: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 3px; width: fit-content; background: none !important; }
+.brand-tier { font-family: 'Fredoka', sans-serif; font-size: 34px; font-weight: 700; background: -webkit-linear-gradient(45deg, var(--text), var(--sub)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.brand-ticker { font-family: 'Fredoka', sans-serif; font-size: 34px; font-weight: 700; display: inline-block; transform: rotate(-2deg); background: linear-gradient(90deg, #e91e63, #9c27b0, #e91e63); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: gradientFlow 5s linear infinite; }
+.brand-icon-pop { background: var(--accent); color: white !important; font-size: 12px; font-weight: 900; font-family: 'Fredoka', sans-serif; padding: 3px 7px; border-radius: 10px; display: inline-block; margin-left: 6px; margin-bottom: 22px; transform: rotate(15deg); box-shadow: 0 3px 10px var(--accent-glow); border: 2px solid var(--bg); animation: floatBubble 3s ease-in-out infinite; }
+
+@keyframes gradientFlow { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+@keyframes floatBubble { 0%, 100% { transform: rotate(15deg) translateY(0); } 50% { transform: rotate(10deg) translateY(-4px) scale(1.05); } }
+
+/* === LEVEL CARD === */
+.level-card { border-radius: 24px; padding: 25px 20px; color: white; text-align: center; position: relative; overflow: hidden; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+.rank-garden { background: linear-gradient(135deg, #7b4397, #dc2430); box-shadow: 0 10px 30px rgba(220, 36, 48, 0.3); } /* Crimson/Purple */
+.rank-forest { background: linear-gradient(135deg, #43cea2, #185a9d); box-shadow: 0 10px 30px rgba(24, 90, 157, 0.4); }
+.rank-water { background: linear-gradient(135deg, #2193b0, #6dd5ed); box-shadow: 0 10px 30px rgba(33, 147, 176, 0.4); }
+.rank-savanna { background: linear-gradient(135deg, #f7971e, #ffd200); box-shadow: 0 10px 30px rgba(247, 151, 30, 0.4); color: #000; }
+.rank-legend { background: linear-gradient(135deg, #141E30, #243B55); border: 1px solid rgba(255,255,255,0.3); }
+
+.lvl-name { font-size: 30px; font-weight: 900; margin: 0; font-family: 'Fredoka', sans-serif; }
+.lvl-icon-big { font-size: 60px; margin-bottom: 10px; animation: floating 3s ease-in-out infinite; }
+@keyframes floating { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+
+/* KPI GRID */
+.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 25px; }
+.kpi-bubble { background: var(--card); border-radius: 24px; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; box-shadow: var(--shadow); border: 1px solid rgba(255,255,255,0.1); }
+.kpi-val { font-size: 26px; font-weight: 900; color: var(--text); }
+.kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; font-weight: bold; margin-top: 5px; }
+
+/* MAP & STATS */
+#map { height: 60vh; width: 100%; border-radius: 24px; z-index: 1; margin-bottom: 20px; border: 4px solid var(--card); }
+.card-section { background:var(--card); padding:20px; border-radius:20px; box-shadow: var(--shadow); margin-bottom: 20px; border: var(--glass-border); }
+.stat-widget-wrapper { background: rgba(28, 28, 30, 0.6); backdrop-filter: blur(15px); border-radius: 22px; padding: 20px; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 10px 25px rgba(0,0,0,0.3); margin-bottom: 20px; }
+
+/* CONTEXT MENU */
+.context-menu { position: fixed; background: var(--card-solid); border: 1px solid var(--btn); border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 11000; overflow: hidden; min-width: 180px; animation: fadeIn 0.1s ease-out; }
+.context-item { padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; border-bottom: 1px solid rgba(0,0,0,0.03); color: var(--text); }
+.context-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10999; background: transparent; }
+
+/* TOASTS */
+.error-toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--err-bg); color: var(--err-text); padding: 12px 24px; border-radius: 50px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); z-index: 9999; display: none; font-weight: bold; }
+</style>
+
+</head>
+<body>
+
+<!-- Global Toast -->
+<div id="errorToast" class="error-toast"></div>
+
+<!-- HEADER CONTROLS -->
+<div class="header-controls">
+  <button class="icon-btn-header" onclick="safeRun(openSettings)" title="Einstellungen">⚙️</button>
+  <button class="icon-btn-header info" onclick="safeRun(openInfoModal)" title="Hilfe anzeigen">ℹ️</button>
+</div>
+
+<!-- HEADER LOGO -->
+<h1 class="app-brand">
+    <span class="brand-tier">Social</span>
+    <span class="brand-ticker">Tracker</span>
+    <span class="brand-icon-pop">+1</span>
+</h1>
+
+<!-- === VIEW: LIST (Startseite) === -->
+<div id="view-list" class="view-section active">
+  <div class="list-header">
+      <input id="listSearch" class="search-bar" placeholder="🔍 Person suchen..." oninput="safeRun(debouncedRender)">
+      <button class="btn-sighting-large" onclick="safeRun(openQuickSighting)">
+          <span style="font-size:18px; font-weight:900;">+</span> Interaktion
+      </button>
+  </div>
+
+  <div id="tagFilterContainer" class="tag-scroll"></div>
+
+  <!-- Tools für Ansicht -->
+  <div id="floatingControls" style="display:flex; justify-content:flex-end; gap:10px; margin-bottom:10px;">
+      <button style="width:44px;height:44px;border-radius:14px;background:var(--card);border:1px solid var(--btn);" onclick="safeRun(toggleViewMode)" id="viewToggleBtn">📜</button>
+      <button style="width:44px;height:44px;border-radius:14px;background:var(--card);border:1px solid var(--btn);" onclick="safeRun(cycleSort)" id="sortBtn">⭐</button>
+  </div>
+
+  <div id="list" style="padding-bottom: 20px;"></div>
+  
+  <div id="emptyState" style="text-align:center; padding:60px 20px; color:var(--sub); display:none;">
+      <div style="font-size:60px; margin-bottom:15px; opacity:0.5">👥</div>
+      <h3>Keine Kontakte gefunden</h3>
+      <p>Gehe auf "Admin", um Freunde hinzuzufügen.</p>
+  </div>
+</div>
+
+<!-- === VIEW: ADMIN (Verwalten) === -->
+<div id="view-admin" class="view-section">
+  
+  <div class="card-section">
+    <h3>👤 Neuen Kontakt anlegen</h3>
+    <div style="display:flex; gap:10px; margin:15px 0;">
+        <input id="emojiInput" placeholder="👤" size="3" style="width:60px; text-align:center; font-size:24px">
+        <input id="nameInput" placeholder="Name (z.B. Max Mustermann)" style="flex:1">
+    </div>
+    
+    <div style="margin-bottom:15px">
+        <input id="tagInput" placeholder="Gruppe (z.B. Arbeit, Familie)..." list="tagSuggestions">
+        <datalist id="tagSuggestions">
+            <option value="Familie"><option value="Freunde"><option value="Arbeit">
+            <option value="Sport"><option value="Schule"><option value="Nachbarn">
+        </datalist>
+    </div>
+    
+    <button onclick="safeRun(addContact)" style="width:100%; background:var(--accent); color:#fff; padding:14px;">Kontakt Speichern ✨</button>
+  </div>
+
+  <div class="card-section">
+      <h3>💾 Daten & Sicherung</h3>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+          <button onclick="safeRun(downloadBackup)">📦 Backup</button>
+          <button onclick="document.getElementById('importFile').click()">📥 Import</button>
+          <input type="file" id="importFile" accept="application/json" hidden onchange="safeRun(importBackup, event)">
+      </div>
+  </div>
+  
+  <div style="text-align:center; margin-top:40px;">
+      <button onclick="safeRun(hardReset)" style="background:transparent; color:var(--err-text); border:1px solid var(--err-text); font-size:12px">⚠️ App zurücksetzen</button>
+  </div>
+</div>
+
+<!-- === VIEW: MAP (Karte) === -->
+<div id="view-map" class="view-section">
+    <div id="map"></div>
+    <div style="text-align:center; opacity:0.7; font-size:13px">Zeigt Orte deiner Treffen.</div>
+</div>
+
+<!-- === VIEW: STATS (Statistik) === -->
+<div id="view-stats" class="view-section">
+  <div style="display:flex; justify-content:flex-end; margin-bottom:20px; padding-top:5px;">
+      <select id="statsYearSelect" onchange="safeRun(renderStats)" style="background:var(--card); border:1px solid var(--accent); color:var(--accent); font-weight:bold; padding:8px; border-radius:15px;"></select>
+  </div>
+  <div id="statsContent"></div>
+  <div style="height:20px;"></div>
+</div>
+
+<!-- === BOTTOM NAV === -->
+<div class="bottom-nav">
+    <button class="nav-item active" onclick="safeRun(switchView, 'view-list', this)">
+        <span class="nav-icon">📋</span><span>Liste</span>
+    </button>
+    <button class="nav-item" onclick="safeRun(switchView, 'view-admin', this)">
+        <span class="nav-icon">🛠️</span><span>Verwaltung</span>
+    </button>
+    <button class="nav-item" onclick="safeRun(switchView, 'view-map', this)">
+        <span class="nav-icon">🌍</span><span>Karte</span>
+    </button>
+    <button class="nav-item" onclick="safeRun(switchView, 'view-stats', this)">
+        <span class="nav-icon">📊</span><span>Stats</span>
+    </button>
+</div>
+
+<!-- MODALS -->
+<div id="detailModal" class="modal">
+    <div class="modal-content">
+        <div class="close-btn" onclick="closeModal('detailModal')">✕</div>
+        <div id="detail-dynamic-header"></div>
+        <div id="modalBody"></div>
+    </div>
+</div>
+
+<div id="noteModal" class="modal">
+  <div class="modal-content">
+    <div class="sheet-handle"></div>
+    <div class="close-btn" onclick="closeModal('noteModal')">✕</div>
+    <h3 id="noteModalTitle">➕ Treffen notieren</h3>
+
+    <div id="noteContactWrapper" style="margin-bottom:15px;">
+        <label style="font-size:12px; font-weight:bold; opacity:0.7; margin-bottom:4px; display:block;">Mit wem?</label>
+        <input id="noteContactInput" placeholder="🔍 Name tippen..." style="font-weight:bold; border:2px solid var(--accent);">
+        <div id="noteContactResults" style="display:none; border:1px solid var(--btn); border-radius:0 0 12px 12px; max-height:150px; overflow-y:auto;"></div>
+    </div>
+
+    <input type="date" id="noteDate" style="margin-bottom:10px">
+    <div style="display:flex; gap:10px; margin-bottom:10px;">
+        <input type="time" id="noteTime" style="width:110px;">
+        <input id="noteLoc" placeholder="📍 Ort (z.B. Café)...">
+    </div>
+    <textarea id="noteText" placeholder="Was habt ihr gemacht?" rows="4" style="margin-bottom:15px"></textarea>
+    <button id="noteSaveBtn" style="width:100%; background:var(--accent); color:#fff; padding:15px">Speichern</button>
+  </div>
+</div>
+
+<div id="infoModal" class="modal">
+  <div class="modal-content">
+    <div class="close-btn" onclick="closeModal('infoModal')">✕</div>
+    <h3>📖 Anleitung</h3>
+    <p>Willkommen beim <b>Social Tracker</b>!</p>
+    <ul>
+        <li><b>+ Interaktion:</b> Speichere Treffen oder Gespräche.</li>
+        <li><b>Stats:</b> Sieh dir an, wen du oft triffst und verbessere dein "Social Level".</li>
+        <li><b>Gruppen:</b> Ordne Kontakte Gruppen wie "Arbeit" oder "Freunde" zu.</li>
+    </ul>
+  </div>
+</div>
+
+<div id="iconModal" class="modal">
+  <div class="modal-content">
+    <div class="close-btn" onclick="closeModal('iconModal')">✕</div>
+    <h3>✏️ Kontakt bearbeiten</h3>
+    <div style="display:flex; gap:10px; margin-bottom:15px">
+       <input id="editEmoji" style="width:60px; font-size:24px; text-align:center" placeholder="Icon">
+       <input id="editName" placeholder="Name">
+    </div>
+    <input id="editTag" placeholder="Gruppe (Komma getrennt)" style="margin-bottom:20px;">
+    <button onclick="safeRun(saveIconEdit)" style="width:100%; background:var(--accent); color:#fff; padding:15px;">💾 Speichern</button>
+  </div>
+</div>
+
+<!-- LEAFLET JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<script>
+// === CORE CONFIG ===
+const currentSystemYear = new Date().getFullYear();
+let contacts = []; 
+let locations = [];
+let dark = false;
+let currentFilter = 'ALL';
+let sortMode = 'fav'; 
+let viewMode = 'list';
+
+// Level System: Sozialstatus
+const levels = [
+    { xp: 0, name: "Einsiedler 🏠" }, 
+    { xp: 50, name: "Beobachter 👀" }, 
+    { xp: 150, name: "Bekannter 👋" },
+    { xp: 300, name: "Geselliger ☕" }, 
+    { xp: 600, name: "Freundeskreis 🍻" },
+    { xp: 1000, name: "Netzwerker 🤝" }, 
+    { xp: 2000, name: "Social Butterfly 🦋" }, 
+    { xp: 3500, name: "Community Leader 👑" }, 
+    { xp: 5000, name: "Legende 🌟" }
+];
+
+// Helper
+const getEl = id => document.getElementById(id);
+const todayStr = () => new Date().toISOString().slice(0,10);
+const nowTimeStr = () => new Date().toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+function safeRun(fn, ...args){ try{fn(...args)}catch(e){console.error(e); showErrorToast(e.message)}}
+function showErrorToast(msg){
+    const t=getEl('errorToast'); t.innerText=msg; 
+    t.style.display='block'; setTimeout(()=>t.style.display='none',3000);
+}
+function closeModal(id){ getEl(id).style.display='none'; }
+
+// === DATA ENGINE ===
+function getHistory(y) { try{return JSON.parse(localStorage.getItem('social-history-'+y))||{}}catch(e){return{}} }
+function saveHistory(y, h) { localStorage.setItem('social-history-'+y, JSON.stringify(h)); }
+function getAvailableYears() {
+    let ys = new Set([currentSystemYear]);
+    for(let i=0; i<localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if(k.startsWith('social-history-')) ys.add(parseInt(k.split('-')[2]));
+    }
+    return Array.from(ys).sort((a,b)=>b-a);
+}
+
+function writeEntry(date, idx, data){
+    const y = parseInt(date.split('-')[0]);
+    let h = getHistory(y);
+    h[date] = h[date] || { total:0, perPerson:{} };
+    h[date].perPerson[idx] = h[date].perPerson[idx] || [];
+    h[date].perPerson[idx].push(data);
+    h[date].total++;
+    saveHistory(y, h);
+}
+
+function removeEntry(date, idx, arrIdx){
+    const y = parseInt(date.split('-')[0]);
+    let h = getHistory(y);
+    if(h[date]?.perPerson?.[idx]){
+        h[date].perPerson[idx].splice(arrIdx, 1);
+        h[date].total--;
+        if(h[date].perPerson[idx].length===0) delete h[date].perPerson[idx];
+        saveHistory(y, h);
+    }
+}
+
+function loadGlobals(){
+    const c = localStorage.getItem('contacts-'+currentSystemYear);
+    contacts = c ? JSON.parse(c) : [];
+    locations = JSON.parse(localStorage.getItem('social-locations')||'[]');
+    
+    // Settings
+    if(localStorage.getItem('darkmode')==='true') { document.body.classList.add('dark'); dark=true; }
+    viewMode = localStorage.getItem('viewMode') || 'list';
+    sortMode = localStorage.getItem('sortMode') || 'fav';
+}
+
+function saveGlobals(){
+    localStorage.setItem('contacts-'+currentSystemYear, JSON.stringify(contacts));
+    localStorage.setItem('social-locations', JSON.stringify(locations));
+}
+
+// === LOGIC ===
+function addContact(){
+    const nm = getEl('nameInput').value.trim();
+    if(!nm) return showErrorToast("Name fehlt");
+    const tags = getEl('tagInput').value.trim() ? getEl('tagInput').value.split(',').map(s=>s.trim()) : [];
+    contacts.push({ name:nm, emoji:getEl('emojiInput').value||'👤', tags, isFav: false });
+    getEl('nameInput').value=''; getEl('emojiInput').value=''; getEl('tagInput').value='';
+    saveGlobals(); render();
+    showErrorToast("Kontakt angelegt!");
+}
+
+function openQuickSighting() {
+    const modal = getEl('noteModal');
+    getEl('noteContactInput').value = '';
+    getEl('noteContactResults').style.display = 'none';
+    getEl('noteDate').value = todayStr(); 
+    getEl('noteTime').value = nowTimeStr();
+    getEl('noteText').value = '';
+    getEl('noteLoc').value = '';
+
+    // Autocomplete Logic
+    const inp = getEl('noteContactInput');
+    inp.oninput = (e) => {
+        const val = e.target.value.toLowerCase();
+        const res = getEl('noteContactResults');
+        res.innerHTML = '';
+        if(val.length < 1) { res.style.display='none'; return; }
+        const matches = contacts.filter(c => c.name.toLowerCase().includes(val));
+        if(matches.length > 0) {
+            res.style.display = 'block';
+            matches.slice(0, 5).forEach(c => {
+                const div = document.createElement('div');
+                div.style.padding="10px"; div.style.borderBottom="1px solid #eee"; div.innerHTML = `${c.emoji} <b>${c.name}</b>`;
+                div.onclick = () => { inp.value = c.name; res.style.display = 'none'; };
+                res.appendChild(div);
+            });
+        } else { res.style.display = 'none'; }
+    };
+
+    getEl('noteSaveBtn').onclick = () => {
+        const name = getEl('noteContactInput').value.trim();
+        if(!name) return;
+        let idx = contacts.findIndex(c => c.name.toLowerCase() === name.toLowerCase());
+        
+        if(idx === -1) {
+            contacts.push({ name, emoji: '👤', tags: [], isFav: false });
+            idx = contacts.length - 1;
+            saveGlobals();
+        }
+
+        const rawLoc = getEl('noteLoc').value.trim();
+        if(rawLoc && !locations.includes(rawLoc)) { locations.push(rawLoc); saveGlobals(); }
+
+        const d = getEl('noteDate').value || todayStr();
+        const data = { time: getEl('noteTime').value, location: rawLoc, note: getEl('noteText').value };
+        
+        writeEntry(d, idx, data);
+        closeModal('noteModal');
+        render();
+        showErrorToast("Interaktion gespeichert!");
+    };
+    modal.style.display = 'block';
+}
+
+function render() {
+    const list = getEl('list'); list.innerHTML = '';
+    const h = getHistory(currentSystemYear);
+    
+    // Tag Filter
+    const allTags = new Set(); contacts.forEach(c => c.tags?.forEach(t => allTags.add(t)));
+    const tagCont = getEl('tagFilterContainer');
+    let tagHTML = `<div class="tag-pill ${currentFilter==='ALL'?'active':''}" onclick="safeRun(filterTags, 'ALL')">Alle</div>`;
+    allTags.forEach(t => tagHTML += `<div class="tag-pill ${currentFilter===t?'active':''}" onclick="safeRun(filterTags, '${t}')">${t}</div>`);
+    tagCont.innerHTML = tagHTML;
+
+    // Filter Logic
+    const searchVal = getEl('listSearch').value.toLowerCase();
+    let displayList = contacts.map((c, i) => {
+        let count = 0;
+        Object.values(h).forEach(day => { if(day.perPerson?.[i]) count += day.perPerson[i].length; });
+        return { ...c, idx: i, count };
+    }).filter(c => {
+        if(currentFilter !== 'ALL' && !c.tags?.includes(currentFilter)) return false;
+        if(searchVal && !c.name.toLowerCase().includes(searchVal)) return false;
+        return true;
+    });
+
+    if(displayList.length === 0) { getEl('emptyState').style.display='block'; return; }
+    getEl('emptyState').style.display='none';
+
+    // Sortierung
+    displayList.sort((a,b) => {
+        if(sortMode === 'fav') { 
+            if (a.isFav && !b.isFav) return -1; if (!a.isFav && b.isFav) return 1; return b.count - a.count;
+        }
+        return b.count - a.count;
+    });
+
+    displayList.forEach((item) => {
+        const div = document.createElement('div'); div.className = 'row';
+        div.innerHTML = `
+            <div class="row-main" onclick="openDetail(${item.idx})">
+                <div class="list-visual">
+                    <div class="list-thumb-placeholder" style="background: var(--btn);">${item.emoji}</div>
+                </div>
+                <div class="list-content">
+                    <div class="list-name">${item.name} ${item.isFav ? '<span class="list-fav-star">★</span>' : ''}</div>
+                    <div class="list-sub-line">${item.tags[0] || 'Keine Gruppe'}</div>
+                </div>
+                <div class="count-badge"><span>${item.count}</span></div>
+            </div>
+            <div class="row-menu" onclick="openContactMenu(${item.idx}, event)">⋮</div>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function filterTags(t) { currentFilter=t; render(); }
+function toggleViewMode() { viewMode = viewMode==='list'?'grid':'list'; localStorage.setItem('viewMode',viewMode); render(); }
+
+// === DETAILS ===
+function openDetail(i) {
+    const c = contacts[i];
+    const y = parseInt(getEl('statsYearSelect').value) || currentSystemYear;
+    const h = getHistory(y);
+    
+    // Header
+    const headHTML = `
+    <div style="text-align:center; padding-bottom:15px; border-bottom:1px solid var(--btn);">
+        <div style="font-size:50px;">${c.emoji}</div>
+        <h2 style="margin:5px 0 0 0;">${c.name}</h2>
+        <div style="opacity:0.6; font-size:12px;">${c.tags.join(', ')}</div>
+        <div style="margin-top:10px; display:flex; justify-content:center; gap:10px;">
+            <button onclick="toggleFav(${i})" style="padding:8px 15px; font-size:12px;">${c.isFav?'⭐ Favorit':'☆ Zu Favoriten'}</button>
+            <button onclick="openIconEdit(${i})" style="padding:8px 15px; font-size:12px;">✏️ Bearbeiten</button>
+        </div>
+    </div>`;
+    getEl('detail-dynamic-header').innerHTML = headHTML;
+    
+    // Verlauf
+    let html = '';
+    let total = 0;
+    
+    // Liste aller Treffen sammeln
+    let entries = [];
+    Object.entries(h).forEach(([date, d]) => {
+        if(d.perPerson?.[i]) {
+            d.perPerson[i].forEach((entry, idx) => {
+                entries.push({ date, entry, arrIdx: idx });
+                total++;
+            });
+        }
+    });
+    
+    // Sortieren (neu nach alt)
+    entries.sort((a,b) => b.date.localeCompare(a.date));
+
+    if(entries.length === 0) {
+        html = '<div style="padding:30px; text-align:center; opacity:0.5;">Noch keine Treffen in diesem Jahr.</div>';
+    } else {
+        entries.forEach(e => {
+            html += `
+            <div style="background:var(--bg); padding:10px; border-radius:12px; margin-top:10px;">
+                <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:14px;">
+                    <span>📅 ${e.date.split('-').reverse().slice(0,2).join('.')}</span>
+                    <span>${e.entry.time || ''}</span>
+                </div>
+                ${e.entry.location ? `<div style="font-size:12px; opacity:0.8;">📍 ${e.entry.location}</div>` : ''}
+                ${e.entry.note ? `<div style="margin-top:5px; font-style:italic; background:var(--card); padding:6px; border-radius:6px;">"${e.entry.note}"</div>` : ''}
+                <div style="text-align:right; margin-top:5px;">
+                     <button onclick="deleteEntry('${e.date}', ${i}, ${e.arrIdx})" style="font-size:10px; padding:4px 8px; background:var(--err-bg); color:var(--err-text);">Löschen</button>
+                </div>
+            </div>`;
+        });
+    }
+
+    getEl('modalBody').innerHTML = html;
+    getEl('detailModal').style.display='block';
+}
+
+function deleteEntry(date, i, arrIdx) {
+    if(confirm("Eintrag löschen?")) {
+        removeEntry(date, i, arrIdx);
+        openDetail(i); // Refresh
+        render();
+    }
+}
+
+function toggleFav(i) { contacts[i].isFav = !contacts[i].isFav; saveGlobals(); openDetail(i); render(); }
+
+// === EDIT ===
+let editIdx = null;
+function openIconEdit(i){
+    editIdx = i;
+    getEl('editName').value = contacts[i].name;
+    getEl('editEmoji').value = contacts[i].emoji;
+    getEl('editTag').value = contacts[i].tags.join(', ');
+    getEl('iconModal').style.display='block';
+    closeModal('detailModal');
+}
+
+function saveIconEdit(){
+    if(editIdx===null) return;
+    contacts[editIdx].name = getEl('editName').value;
+    contacts[editIdx].emoji = getEl('editEmoji').value || '👤';
+    contacts[editIdx].tags = getEl('editTag').value.split(',').map(s=>s.trim()).filter(s=>s);
+    saveGlobals();
+    render();
+    closeModal('iconModal');
+}
+
+// === STATS ===
+function renderStats(){
+    const y = parseInt(getEl('statsYearSelect').value) || currentSystemYear;
+    const h = getHistory(y);
+    
+    // Globale XP
+    let totalInteractions = 0;
+    getAvailableYears().forEach(yr => {
+        const hist = getHistory(yr);
+        Object.values(hist).forEach(d => totalInteractions += (d.total || 0));
+    });
+    
+    // Level
+    let lvl = levels[0], nextLvl = null;
+    for(let l of levels) { if(totalInteractions >= l.xp) lvl = l; else { nextLvl = l; break; } }
+    const progress = nextLvl ? ((totalInteractions - lvl.xp) / (nextLvl.xp - lvl.xp)) * 100 : 100;
+
+    // KPI
+    let yTotal = 0;
+    let peopleSet = new Set();
+    Object.values(h).forEach(d => {
+        yTotal += d.total;
+        if(d.perPerson) Object.keys(d.perPerson).forEach(k => peopleSet.add(k));
+    });
+
+    let html = `
+    <div class="level-card rank-water" style="background:linear-gradient(135deg, #e91e63, #9c27b0);">
+        <div class="lvl-name">${lvl.name}</div>
+        <div style="font-size:12px; opacity:0.9;">Gesamt: ${totalInteractions} XP</div>
+        <div style="background:rgba(0,0,0,0.2); height:10px; border-radius:10px; margin-top:10px; overflow:hidden;">
+            <div style="width:${progress}%; background:#fff; height:100%;"></div>
+        </div>
+        <div style="font-size:10px; margin-top:4px;">Nächster Rang: ${nextLvl ? nextLvl.name : 'Max'}</div>
+    </div>
+    
+    <div class="kpi-grid">
+        <div class="kpi-bubble"><div class="kpi-val">${yTotal}</div><div class="kpi-label">Treffen ${y}</div></div>
+        <div class="kpi-bubble"><div class="kpi-val">${peopleSet.size}</div><div class="kpi-label">Personen</div></div>
+    </div>
+    `;
+
+    // Top 3
+    let counts = {};
+    Object.values(h).forEach(d => {
+        if(d.perPerson) Object.entries(d.perPerson).forEach(([k, list]) => counts[k] = (counts[k]||0) + list.length);
+    });
+    const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,3);
+    
+    if(top.length > 0) {
+        html += `<div class="card-section"><h3>🏆 Top Kontakte</h3>`;
+        top.forEach(([idx, count], i) => {
+            const c = contacts[idx];
+            html += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;">
+                <span>${i+1}. ${c.emoji} ${c.name}</span>
+                <strong>${count}x</strong>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    getEl('statsContent').innerHTML = html;
+    
+    // Dropdown füllen
+    const ys = getAvailableYears();
+    const sel = getEl('statsYearSelect');
+    if(sel.options.length !== ys.length) {
+        sel.innerHTML = ys.map(y => `<option value="${y}" ${y===currentSystemYear?'selected':''}>${y}</option>`).join('');
+    }
+}
+
+// === MISC ===
+function switchView(id, btn){
+    document.querySelectorAll('.view-section').forEach(e=>e.classList.remove('active')); getEl(id).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active')); if(btn) btn.classList.add('active');
+    if(id==='view-stats') renderStats();
+    if(id==='view-map') setTimeout(initMap, 200);
+}
+
+function openContactMenu(i, e) {
+    e.stopPropagation();
+    openContextMenu(e.clientX, e.clientY, [
+        { label: 'Sichtung', icon: '+', action: `openQuickSightingFromMenu(${i})` },
+        { label: 'Bearbeiten', icon: '✏️', action: `openIconEdit(${i})` }
+    ]);
+}
+function openContextMenu(x, y, items) {
+    document.querySelectorAll('.context-menu, .context-backdrop').forEach(e=>e.remove());
+    const bg = document.createElement('div'); bg.className='context-backdrop'; bg.onclick=()=>bg.remove();
+    const m = document.createElement('div'); m.className='context-menu'; m.style.left=x-150+'px'; m.style.top=y+'px';
+    items.forEach(i => {
+        const d = document.createElement('div'); d.className='context-item'; d.innerHTML=`<span>${i.icon}</span> ${i.label}`;
+        d.onclick=()=>{ safeRun(()=>{ eval(i.action) }); bg.remove(); };
+        m.appendChild(d);
+    });
+    document.body.appendChild(bg); document.body.appendChild(m);
+}
+function openQuickSightingFromMenu(i) {
+    const c = contacts[i];
+    openQuickSighting();
+    getEl('noteContactInput').value = c.name;
+}
+
+// === MAP ===
+let mapInstance;
+function initMap() {
+    if(mapInstance) { mapInstance.invalidateSize(); return; }
+    mapInstance = L.map('map').setView([51.165, 10.451], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:'&copy; OSM'}).addTo(mapInstance);
+    // Hier könnte man Marker für Orte setzen, wenn Koordinaten vorhanden wären (wie im Original)
+}
+
+// === BACKUP ===
+function downloadBackup(){
+    const data = { contacts, locations, history: getHistory(currentSystemYear) };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
+    a.download = `social-backup-${todayStr()}.json`; a.click();
+}
+function importBackup(e){
+    const reader = new FileReader();
+    reader.onload = evt => {
+        const d = JSON.parse(evt.target.result);
+        contacts = d.contacts || []; locations = d.locations || [];
+        if(d.history) saveHistory(currentSystemYear, d.history);
+        saveGlobals(); location.reload();
+    };
+    reader.readAsText(e.target.files[0]);
+}
+function hardReset(){ if(confirm("Alles löschen?")) { localStorage.clear(); location.reload(); } }
+function openInfoModal(){ getEl('infoModal').style.display='block'; }
+function openSettings(){ alert("Einstellungen sind im Admin-Bereich."); }
+
+// START
+loadGlobals();
+render();
+
+</script>
+</body>
+</html>
