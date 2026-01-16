@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1">
+<title>People Tracker 👤</title>
+<meta name="theme-color" content="#000000">
+
+<!-- PWA MANIFEST -->
+<link rel="manifest" href='data:application/manifest+json,{"name":"People Tracker","short_name":"People","start_url":".","display":"standalone","background_color":"#121212","theme_color":"#2196f3","icons":[{"src":"https://emojicdn.elk.sh/👤","sizes":"192x192","type":"image/png"}]}'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<!-- FONTS -->
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+<style>
+/* === FIX FÜR DAS DROPDOWN MENÜ === */
+
+/* 1. Der Container muss relative sein, damit das Menü daran andocken kann */
+.micro-btn-wrap {
+    position: relative !important;
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+/* 2. Das Menü selbst: Standardmäßig AUS (none) und absolut positioniert */
+.micro-menu {
+    display: none !important; /* ZWINGEND VERSTECKEN */
+    position: absolute;
+    top: 40px;      /* Abstand nach unten */
+    right: 0;       /* Rechtsbündig */
+    min-width: 160px;
+    
+    /* Design: Damit es wie eine Karte aussieht und nicht nur Text ist */
+    background-color: var(--card-solid) !important;
+    border: 1px solid var(--btn) !important;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4) !important;
+    
+    padding: 8px;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 20000 !important; /* Ganz weit oben liegen */
+}
+
+/* 3. Nur anzeigen, wenn die Klasse 'show' per JS hinzugefügt wird */
+.micro-menu.show {
+    display: flex !important;
+    animation: fadeInMenu 0.2s ease-out;
+}
+
+/* Kleine Animation fürs Einblenden */
+@keyframes fadeInMenu {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 4. Die Einträge im Menü */
+.mm-item {
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.1s;
+}
+
+.mm-item:active {
+    background: var(--btn);
+}
+
+/* Damit die Suche das Menü nicht abschneidet */
+.search-fusion-wrapper {
+    overflow: visible !important;
+}
+
+</style>
+
+<style>
+/* =========================================
+   VARIABLES & RESET
+   ========================================= */
+*, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+input, textarea { user-select: text !important; -webkit-user-select: text !important; }
+
+:root{
+    --bg:#f0f2f5; --card:rgba(255, 255, 255, 0.85); --card-solid:#fff;
+    --text:#1c1e21; --btn:#e4e6eb; --hover:#d8dadf;
+    --accent:#2196f3; --accent-glow: rgba(33, 150, 243, 0.4);
+    --warn-bg:#fff3cd; --warn-text:#856404; --err-bg:#f8d7da; --err-text:#721c24;
+    --sub:#65676b; --nav-height: 70px;
+    --shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+   
+body.dark {
+    --bg: #000000; --card: #1c1c1e; --card-solid: #1c1c1e;
+    --text: #ffffff; --sub: #a0a0a0; --btn: #2c2c2e; --hover: #3a3a3c;
+    --accent: #0a84ff; --accent-glow: rgba(10, 132, 255, 0.4);
+    --warn-bg: #3a3a00; --warn-text: #ffd700; --err-bg: #3a0005; --err-text: #ff6b6b;
+    --shadow: none; 
+}
+
+body {
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+    background:var(--bg); color:var(--text); max-width:980px; margin:auto; 
+    padding:16px; padding-bottom:calc(var(--nav-height) + 40px); 
+    position:relative; overflow-x:hidden; transition: background 0.3s;
+}
+
+/* UTILS */
+.hidden { display: none !important; }
+.fade-in { animation: fadeIn 0.3s forwards; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* HEADER */
+.app-brand { margin-top: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 3px; }
+.brand-tier { font-family: 'Fredoka', sans-serif; font-size: 32px; font-weight: 700; color: var(--text); }
+.brand-ticker { font-family: 'Fredoka', sans-serif; font-size: 32px; font-weight: 700; color: var(--accent); }
+
+/* SEARCH BAR & MENU */
+.list-header { display:flex; gap: 10px; margin-bottom:15px; position: relative; z-index: 5; }
+.search-fusion-wrapper { flex:1; display:flex; align-items:center; background:var(--card-solid); border-radius:20px; box-shadow: var(--shadow); border: 1px solid rgba(128, 128, 128, 0.25); height: 50px; padding-right: 4px; }
+.sf-input { flex:1; width:100%; background:transparent; border:none; padding:0 16px; font-size:15px; color:var(--text); outline:none; font-weight:600; }
+
+.sem-controls { display: flex; gap: 4px; padding-left: 6px; border-left: 1px solid var(--btn); height: 32px; align-items: center; }
+.micro-btn { background: transparent; border: none; font-size: 11px; font-weight: 800; color: var(--sub); padding: 0 8px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.micro-btn:active { background: var(--btn); color: var(--text); }
+
+/* LIST & GRID */
+.grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; padding-bottom: 20px; }
+.grid-item { background: var(--card); border-radius: 20px; padding: 0; height: 160px; display: flex; flex-direction: column; justify-content: flex-end; position: relative; overflow: hidden; box-shadow: var(--shadow); border: 1px solid rgba(255,255,255,0.1); }
+.grid-bg-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
+.grid-info { position: relative; z-index: 2; padding: 12px; background: linear-gradient(to top, rgba(0,0,0,0.9), transparent); width: 100%; }
+.grid-name { font-size: 15px; font-weight: 800; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+.grid-menu-btn { position: absolute; top: 5px; right: 5px; color: white; padding: 5px; z-index: 10; font-size: 22px; cursor: pointer; text-shadow: 0 0 5px rgba(0,0,0,0.8); }
+
+.row { display: flex; align-items: center; background: var(--card); padding: 10px; margin-bottom: 10px; border-radius: 18px; border: 1px solid var(--btn); min-height: 72px; box-shadow: var(--shadow); }
+.row-main { flex: 1; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.list-visual { width: 50px; height: 50px; border-radius: 16px; background: var(--btn); display: flex; align-items: center; justify-content: center; font-size: 24px; overflow: hidden; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.1); }
+.list-visual img { width: 100%; height: 100%; object-fit: cover; }
+.list-content { flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.list-name { font-size: 16px; font-weight: 800; color: var(--text); }
+.list-sub { font-size: 12px; color: var(--sub); font-weight: 500; }
+.row-menu { width: 40px; display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--sub); cursor: pointer; }
+
+/* MODALS */
+.modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); }
+.modal-content { background: var(--card-solid); margin: 10% auto; padding: 25px; border-radius: 24px; width: 90%; max-width: 500px; position: relative; animation: slideUp 0.3s ease-out; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.close-btn { position: absolute; top: 15px; right: 20px; background: var(--btn); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; }
+
+/* FORMS */
+input, textarea, select { width: 100%; padding: 12px 16px; border-radius: 16px; background: rgba(0,0,0,0.05); border: 2px solid transparent; color: var(--text); font-family: inherit; font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+input:focus, textarea:focus { outline: none; background: var(--card-solid); border-color: var(--accent); box-shadow: 0 4px 12px var(--accent-glow); }
+
+/* BOTTOM NAV */
+.nav-island-container { position: fixed; bottom: 30px; left: 0; right: 0; display: flex; justify-content: center; z-index: 9000; pointer-events: none; }
+.nav-island { pointer-events: all; background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.15); border-radius: 40px; padding: 0 25px; height: 65px; display: flex; align-items: center; gap: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.4); }
+body:not(.dark) .nav-island { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0,0,0,0.1); }
+.nav-item { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--sub); cursor: pointer; font-size: 10px; font-weight: 700; background: none; border: none; padding: 0; width: 45px; }
+.nav-item.active { color: var(--accent); }
+.nav-icon { font-size: 24px; margin-bottom: 2px; }
+.nav-main-fab { width: 60px; height: 60px; background: linear-gradient(135deg, var(--accent), #1976d2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 34px; color: #fff; box-shadow: 0 8px 20px var(--accent-glow); border: 4px solid var(--bg); transform: translateY(-20px); cursor: pointer; }
+
+/* SYNC & CARD STYLES */
+.card-section { background: var(--card); padding: 20px; border-radius: 24px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1); box-shadow: var(--shadow); }
+.sync-card { border: 1px solid rgba(0, 184, 148, 0.3); background: linear-gradient(to bottom right, var(--card), rgba(0, 184, 148, 0.05)); }
+.sync-main-btn { padding: 15px; border-radius: 16px; border: none; font-weight: bold; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 5px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: pointer; }
+
+/* CONTEXT MENU */
+.context-menu { position: fixed; background: var(--card-solid); border: 1px solid var(--btn); border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 11000; overflow: hidden; min-width: 180px; }
+.context-item { padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 15px; font-weight: 500; border-bottom: 1px solid rgba(0,0,0,0.05); color: var(--text); }
+.context-item:active { background: var(--btn); }
+.context-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10999; background: transparent; }
+
+/* TOAST */
+.toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--err-bg); color: var(--err-text); padding: 12px 24px; border-radius: 50px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); z-index: 20000; display: none; font-weight: bold; }
+
+<style>
+/* === FIX: GRÖSSERE SCHRIFT FÜR GEBURTSTAG & LAND === */
+
+/* 1. Die Überschriften (Labels) vergrößern */
+#iconModal label, 
+#personModal label {
+    font-size: 15px !important;   /* War vorher winzige 12px */
+    color: var(--text) !important;
+    opacity: 1 !important;        /* Volle Deckkraft */
+    margin-bottom: 8px !important;
+    display: block;
+}
+
+/* 2. Die Eingabefelder selbst riesig machen */
+#editBirth, #editNation,
+#pmBirth, #pmNation {
+    font-size: 20px !important;   /* Deutlich größerer Text */
+    padding: 15px !important;     /* Mehr Platz für den Finger */
+    height: auto !important;
+    font-weight: 800 !important;  /* Extra Fett */
+    
+    /* Optional: Hellerer Hintergrund damit es auffällt */
+    background-color: var(--card-solid) !important; 
+    border: 2px solid var(--btn) !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+/* Kleiner Zoom-Effekt beim Antippen */
+#editBirth:focus, #editNation:focus,
+#pmBirth:focus, #pmNation:focus {
+    border-color: var(--accent) !important;
+    transform: scale(1.02); 
+    transition: transform 0.2s;
+}
+
+/* === FIX: DETAIL ANSICHT SCHRIFTGRÖSSE === */
+
+/* Der Container für Geburtstag, Land & Gruppe */
+#detailMeta {
+    font-size: 19px !important;   /* War vorher 13px -> Jetzt deutlich größer */
+    line-height: 1.6 !important;  /* Mehr Platz zwischen den Zeilen */
+    font-weight: 600 !important;  /* Fett gedruckt */
+    opacity: 1 !important;        /* Kein ausgeblichenes Grau mehr */
+    color: var(--text) !important;
+    
+    /* Optional: Ein Rahmen drumherum, damit es wie eine Info-Karte aussieht */
+    background: var(--bg) !important;
+    padding: 15px !important;
+    border-radius: 16px !important;
+    margin-top: 20px !important;
+    border: 1px solid var(--btn) !important;
+}
+
+</style>
+
+
+</style>
+</head>
+<body>
+
+<div id="toast" class="toast">Nachricht</div>
+
+<!-- HEADER -->
+<h1 class="app-brand">
+    <span class="brand-tier">People</span>
+    <span class="brand-ticker">Tracker</span>
+</h1>
+
+
+<!-- VIEW: LIST -->
+<div id="view-list" class="view-section active">
+    
+    <div class="list-header">
+        <div class="search-fusion-wrapper">
+            <input id="listSearch" class="sf-input" placeholder="Suchen..." oninput="render()">
+            
+            <!-- RECHTE STEUERUNG (Alles muss HIER DRIN sein) -->
+            <div class="sem-controls">
+                
+                <!-- 1. VIEW MENU (List/Grid) -->
+                <div class="micro-btn-wrap">
+                    <button class="micro-btn" onclick="toggleViewMode()" id="viewBtn">LIST</button>
+                </div>
+
+                <!-- TRENNLINIE -->
+                <div style="width:1px; height:16px; background:var(--btn); margin:0 4px;"></div>
+
+                <!-- 2. MODUS MENÜ (People/Notes/Gallery) -->
+                <div class="micro-btn-wrap">
+                    <div id="btn-mode" class="micro-btn active-state" onclick="toggleMicroMenu('menu-mode')">
+                        <span id="lbl-mode">PEOPLE</span> ▾
+                    </div>
+                    <!-- Das Dropdown Menü -->
+                    <div id="menu-mode" class="micro-menu">
+                        <div class="mm-item" onclick="setMicroMode('people')">👥 Personen</div>
+                        <div class="mm-item" onclick="setMicroMode('notes')">📝 Notizen</div>
+                        <div class="mm-item" onclick="setMicroMode('gallery')">📷 Galerie</div>
+                    </div>
+                </div>
+
+            </div> <!-- Ende sem-controls -->
+        </div>
+    </div>
+
+    <!-- LIST CONTAINER -->
+    <div id="list" style="padding-bottom: 20px;"></div>
+    
+    <div id="emptyState" style="text-align:center; padding:60px 20px; opacity:0.5; display:none;">
+        <div style="font-size:60px; margin-bottom:15px;">👥</div>
+        <h3>Keine Personen</h3>
+        <p>Drücke das <b>+</b> unten, um zu starten.</p>
+    </div>
+</div>
+
+<!-- VIEW: SYSTEM (Full Admin + Sync) -->
+<div id="view-system" class="view-section hidden">
+    
+    <!-- SETTINGS -->
+    <div class="card-section">
+        <h3>⚙️ Einstellungen</h3>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg); padding:12px; border-radius:12px; margin-top:10px;">
+            <span>🌙 Dark Mode</span>
+            <input type="checkbox" id="darkToggle" onchange="toggleDarkMode()" style="width:auto; margin:0;">
+        </div>
+    </div>
+
+    <!-- CLOUD SYNC MANAGER (Original Complex Engine) -->
+    <div class="card-section sync-card">
+        <h3>☁️ Cloud Sync (V2)</h3>
+        <p style="font-size:12px; opacity:0.8; margin-bottom:15px;">
+            Verschlüsselte Übertragung zwischen Geräten.
+        </p>
+
+        <!-- KANAL WAHL -->
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <select id="syncChannelSelect" style="flex:1; margin-bottom:0;" onchange="onSyncChannelChange()">
+                <option value="" disabled selected>-- Kanal wählen --</option>
+            </select>
+            <button onclick="openAddSyncModal()" style="background:var(--accent); color:white; border:none; border-radius:12px; padding:0 15px; font-weight:bold;">+</button>
+            <button onclick="deleteSyncChannel()" style="background:var(--card-solid); border:1px solid var(--err-text); color:var(--err-text); border-radius:12px; padding:0 15px;">🗑️</button>
+        </div>
+
+        <!-- ACTIONS -->
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+            <button onclick="startCloudPush()" class="sync-main-btn" style="background:linear-gradient(135deg, var(--accent), #2980b9); color:white;">
+                <span style="font-size:24px">📤</span> Hochladen
+            </button>
+            <button onclick="checkForCloudBackups()" class="sync-main-btn" style="background:var(--card-solid); color:var(--text); border:1px solid var(--btn);">
+                <span style="font-size:24px">🔄</span> Prüfen
+            </button>
+        </div>
+
+        <!-- LISTE GEFUNDENER BACKUPS -->
+        <div id="syncListItems" style="margin-top:15px;"></div>
+    </div>
+
+    <!-- LOCAL BACKUP -->
+    <div class="card-section">
+        <h3>💾 Datenverwaltung</h3>
+        <div style="display:flex; gap:10px; margin-top:15px;">
+            <button onclick="downloadBackup()" style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--btn); background:var(--bg); font-weight:bold;">📦 Backup</button>
+            <button onclick="document.getElementById('impFile').click()" style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--btn); background:var(--bg); font-weight:bold;">📂 Import</button>
+            <input type="file" id="impFile" hidden onchange="importBackup(this)">
+        </div>
+        <div style="margin-top:20px; text-align:center;">
+            <button onclick="hardReset()" style="background:transparent; color:var(--err-text); border:1px solid var(--err-text); padding:8px 15px; border-radius:20px; font-size:12px;">⚠️ Alles löschen</button>
+        </div>
+    </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="nav-island-container">
+    <div class="nav-island">
+        <button class="nav-item active" onclick="switchView('view-list', this)">
+            <span class="nav-icon">👥</span><span>Liste</span>
+        </button>
+        
+        <div class="nav-main-fab" onclick="openPersonModal()">+</div>
+
+        <button class="nav-item" onclick="switchView('view-system', this)">
+            <span class="nav-icon">☁️</span><span>Sync</span>
+        </button>
+    </div>
+</div>
+
+<!-- === MODALS === -->
+
+<!-- PERSON EDIT MODAL -->
+<div id="iconModal" class="modal">
+    <div class="modal-content">
+        <div class="close-btn" onclick="closeModal('iconModal')">✕</div>
+        <h3 id="pmTitle">Person bearbeiten</h3>
+
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <button onclick="document.getElementById('pmFile').click()" style="flex:1; padding:10px; background:var(--btn); border:none; border-radius:12px;">🖼️ Bild wählen</button>
+            <input type="file" id="pmFile" hidden accept="image/*" onchange="handleImage(this)">
+        </div>
+        <div id="imgPreview" style="text-align:center; display:none; margin-bottom:15px">
+            <img id="previewEl" src="" style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:3px solid var(--accent); box-shadow:var(--shadow);">
+            <div style="font-size:12px; color:var(--err-text); margin-top:5px; cursor:pointer;" onclick="clearImage()">Bild entfernen</div>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+            <input id="editEmoji" style="width:70px; text-align:center; font-size:24px;" placeholder="👤">
+            <input id="editName" placeholder="Name (Vorname Nachname)" style="font-weight:bold;">
+        </div>
+
+        <input id="editGroup" placeholder="Gruppe (z.B. Arbeit, Familie)">
+
+        <div style="display:flex; gap:10px;">
+            <div style="flex:1">
+                <label style="font-size:12px; font-weight:bold; opacity:0.7;">Geburtstag</label>
+                <input type="date" id="editBirth">
+            </div>
+            <div style="flex:1">
+                <label style="font-size:12px; font-weight:bold; opacity:0.7;">Nationalität</label>
+                <input id="editNation" placeholder="z.B. Berlin">
+            </div>
+        </div>
+
+        <button onclick="savePerson()" style="width:100%; background:var(--accent); color:#fff; padding:15px; border:none; border-radius:16px; font-weight:bold; margin-top:10px;">Speichern</button>
+        <button id="btnDelete" onclick="deletePerson()" style="width:100%; background:transparent; border:1px solid var(--err-text); color:var(--err-text); padding:10px; border-radius:16px; margin-top:15px; display:none;">Person löschen</button>
+    </div>
+</div>
+
+<!-- NOTIZ / BEGEGNUNG MODAL -->
+<div id="noteModal" class="modal">
+    <div class="modal-content">
+        <div class="close-btn" onclick="closeModal('noteModal')">✕</div>
+        <h3>📝 Neue Begegnung</h3>
+        <p id="noteTargetName" style="opacity:0.6; font-size:13px; margin-top:-10px; margin-bottom:15px;">...</p>
+
+        <div style="display:flex; gap:10px;">
+            <input type="date" id="noteDate" style="flex:1">
+            <input type="time" id="noteTime" style="width:100px;">
+        </div>
+        
+        <input id="noteLoc" placeholder="📍 Ort (Optional)">
+        <textarea id="noteText" rows="5" placeholder="Notiz..."></textarea>
+        
+        <button onclick="saveNote()" style="width:100%; background:var(--accent); color:#fff; padding:15px; border:none; border-radius:16px; font-weight:bold;">Eintrag speichern</button>
+    </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div id="detailModal" class="modal">
+    <div class="modal-content" style="padding:0; overflow:hidden;">
+        <div style="position:relative; height:160px; background:var(--accent);">
+            <div class="close-btn" onclick="closeModal('detailModal')" style="background:rgba(0,0,0,0.3); color:white; z-index:10;">✕</div>
+            <img id="detailBg" style="width:100%; height:100%; object-fit:cover; opacity:0.6;">
+            <div id="detailImg" style="width:90px; height:90px; border-radius:50%; background:var(--card-solid); position:absolute; bottom:-45px; left:20px; border:4px solid var(--card-solid); display:flex; align-items:center; justify-content:center; font-size:40px; overflow:hidden; box-shadow:0 5px 15px rgba(0,0,0,0.2);"></div>
+        </div>
+        
+        <div style="padding:50px 20px 20px 20px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div>
+                    <h2 id="detailName" style="margin:0;">Name</h2>
+                    <div id="detailGroup" style="color:var(--accent); font-weight:bold; font-size:13px;">Gruppe</div>
+                </div>
+                <button onclick="openEditFromDetail()" style="padding:8px 15px; background:var(--btn); border:none; border-radius:20px; font-weight:bold; font-size:12px;">Bearbeiten</button>
+            </div>
+
+            <div id="detailMeta" style="margin-top:15px; font-size:13px; opacity:0.8; line-height:1.6;"></div>
+            <hr style="margin:20px 0; opacity:0.1;">
+            <h4 style="margin:0 0 10px 0;">Verlauf</h4>
+            <div id="detailHistory" style="max-height:300px; overflow-y:auto;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- SYNC ADD MODAL -->
+<div id="syncAddModal" class="modal">
+    <div class="modal-content">
+        <div class="close-btn" onclick="closeModal('syncAddModal')">✕</div>
+        <h3>Neuer Sync-Kanal</h3>
+        <label style="font-size:12px; font-weight:bold;">Name (z.B. iPhone):</label>
+        <input id="newSyncName" placeholder="Name für Gerät...">
+        
+        <label style="font-size:12px; font-weight:bold;">Topic (Geheimer Schlüssel):</label>
+        <div style="display:flex; gap:5px;">
+            <input id="newSyncTopic" placeholder="Generieren..." style="font-family:monospace;">
+            <button onclick="generateRandomTopic()" style="width:40px; padding:0; margin-bottom:10px;">🎲</button>
+        </div>
+        
+        <label style="font-size:12px; font-weight:bold;">Passwort (Optional, Verschlüsselung):</label>
+        <input id="newSyncPass" type="password" placeholder="Passwort...">
+        
+        <button onclick="saveNewSyncChannel()" style="width:100%; background:var(--accent); color:white; padding:12px; border-radius:12px;">Speichern</button>
+    </div>
+</div>
+
+<!-- SYNC PROGRESS -->
+<div id="syncProgressModal" class="modal" style="z-index:20000; align-items:center; justify-content:center;">
+    <div class="modal-content" style="text-align:center; max-width:300px;">
+        <h3 id="syncTitle">Sync läuft...</h3>
+        <p id="syncStatus">Verbinde...</p>
+        <div style="background:var(--btn); height:10px; border-radius:5px; overflow:hidden; margin:15px 0;">
+            <div id="syncBar" style="height:100%; width:0%; background:var(--accent); transition:width 0.3s;"></div>
+        </div>
+        <button onclick="abortSync()" style="color:var(--err-text); background:none; border:1px solid var(--err-text); padding:5px 10px; border-radius:10px;">Abbrechen</button>
+    </div>
+</div>
+
+<script>
+/* =========================================
+   PEOPLE TRACKER LOGIC (FULL ENGINE)
+   ========================================= */
+
+// --- DATA & STATE ---
+let people = JSON.parse(localStorage.getItem('people-data')) || [];
+let syncChannels = JSON.parse(localStorage.getItem('people_sync_channels')) || [];
+let activeSyncId = localStorage.getItem('people_active_sync_id') || null;
+
+let viewMode = localStorage.getItem('viewMode') || 'list';
+let currentEditId = null;
+let activePersonId = null;
+let tempImage = null;
+let isSyncing = false;
+let abortSyncFlag = false;
+
+// --- DB (Images) ---
+const DB_NAME = 'PeopleDB';
+const STORE_IMGS = 'images';
+const dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 2);
+    req.onupgradeneeded = e => { if(!e.target.result.objectStoreNames.contains(STORE_IMGS)) e.target.result.createObjectStore(STORE_IMGS); };
+    req.onsuccess = e => resolve(e.target.result);
+});
+async function dbSaveImg(id, data) { const db=await dbPromise; const tx=db.transaction(STORE_IMGS,'readwrite'); tx.objectStore(STORE_IMGS).put(data,id); return new Promise(r=>tx.oncomplete=r); }
+async function dbGetImg(id) { const db=await dbPromise; return new Promise(r=>{ const req=db.transaction(STORE_IMGS,'readonly').objectStore(STORE_IMGS).get(id); req.onsuccess=()=>r(req.result); }); }
+
+// --- UI HELPER ---
+const getEl = id => document.getElementById(id);
+function showToast(msg, isErr=false) { 
+    const t=getEl('toast'); t.innerText=msg; t.style.background=isErr?'var(--err-bg)':'#333'; t.style.color=isErr?'var(--err-text)':'#fff'; 
+    t.style.display='block'; setTimeout(()=>t.style.display='none',3000); 
+}
+function saveData() { localStorage.setItem('people-data', JSON.stringify(people)); }
+function closeModal(id) { getEl(id).style.display='none'; }
+function toggleViewMode() { viewMode = viewMode === 'list' ? 'grid' : 'list'; localStorage.setItem('viewMode', viewMode); getEl('viewBtn').innerText = viewMode === 'grid' ? 'GRID' : 'LIST'; render(); }
+function switchView(id, btn) {
+    document.querySelectorAll('.view-section').forEach(e => e.classList.add('hidden'));
+    document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+    getEl(id).classList.remove('hidden');
+    btn.classList.add('active');
+}
+
+// --- RENDER ---
+function render() {
+    const list = getEl('list'); list.innerHTML = '';
+    const query = getEl('listSearch').value.toLowerCase();
+    
+    let filtered = people.filter(p => p.name.toLowerCase().includes(query));
+    filtered.sort((a,b) => a.name.localeCompare(b.name));
+
+    if(filtered.length === 0) { getEl('emptyState').style.display='block'; return; }
+    getEl('emptyState').style.display='none';
+
+    if(viewMode === 'grid') {
+        const grid = document.createElement('div'); grid.className = 'grid-container';
+        filtered.forEach(p => {
+            const el = document.createElement('div'); el.className = 'grid-item fade-in';
+            el.innerHTML = `
+                <div class="grid-bg-img" id="bg-${p.id}" style="background:var(--btn);"></div>
+                <div class="grid-menu-btn" onclick="openCtxMenu('${p.id}', event)">⋮</div>
+                <div class="grid-info" onclick="openDetail('${p.id}')">
+                    <div style="font-size:18px">${p.emoji}</div>
+                    <div class="grid-name">${p.name}</div>
+                    <div style="font-size:11px; opacity:0.8;">${p.group || 'Kontakt'}</div>
+                </div>`;
+            grid.appendChild(el);
+            if(p.imageId) dbGetImg(p.imageId).then(src => { if(src) getEl('bg-'+p.id).style.backgroundImage = `url(${src})`; });
+        });
+        list.appendChild(grid);
+    } else {
+        filtered.forEach(p => {
+            const count = p.history ? p.history.length : 0;
+            const row = document.createElement('div'); row.className = 'row fade-in';
+            row.innerHTML = `
+                <div class="row-main" onclick="openDetail('${p.id}')">
+                    <div class="list-visual" id="vis-${p.id}">${p.emoji}</div>
+                    <div class="list-content">
+                        <div class="list-name">${p.name}</div>
+                        <div class="list-sub">${p.group || 'Kontakt'} • ${count} Begegnungen</div>
+                    </div>
+                </div>
+                <div class="row-menu" onclick="openCtxMenu('${p.id}', event)">⋮</div>
+            `;
+            list.appendChild(row);
+            if(p.imageId) dbGetImg(p.imageId).then(src => { if(src) getEl('vis-'+p.id).innerHTML = `<img src="${src}">`; });
+        });
+    }
+}
+
+// --- CONTEXT MENU ---
+function openCtxMenu(id, e) {
+    e.stopPropagation();
+    const old = document.querySelector('.context-menu'); if(old) old.remove();
+    const oldBd = document.querySelector('.context-backdrop'); if(oldBd) oldBd.remove();
+
+    const bd = document.createElement('div'); bd.className = 'context-backdrop';
+    bd.onclick = () => { bd.remove(); document.querySelector('.context-menu')?.remove(); };
+    
+    const m = document.createElement('div'); m.className = 'context-menu';
+    let x = e.clientX || 0; let y = e.clientY || 0;
+    if(x > window.innerWidth - 200) x -= 180;
+    m.style.left = x + 'px'; m.style.top = y + 'px';
+
+    m.innerHTML = `
+        <div class="context-item" onclick="execCtx('note', '${id}')">📝 Neue Begegnung</div>
+        <div class="context-item" onclick="execCtx('edit', '${id}')">✏️ Bearbeiten</div>
+        <div class="context-item ctx-danger" onclick="execCtx('del', '${id}')">🗑️ Löschen</div>
+    `;
+    document.body.appendChild(bd); document.body.appendChild(m);
+}
+
+function execCtx(act, id) {
+    document.querySelector('.context-backdrop').click();
+    if(act === 'note') openNoteModal(id);
+    if(act === 'edit') openPersonModal(id);
+    if(act === 'del') deletePerson(id);
+}
+
+// --- PERSON LOGIC ---
+function openPersonModal(id=null) {
+    currentEditId = id; tempImage = null;
+    getEl('imgPreview').style.display = 'none';
+    getEl('btnDelete').style.display = 'none';
+
+    if(id) {
+        const p = people.find(x => x.id === id);
+        getEl('pmTitle').innerText = 'Person bearbeiten';
+        getEl('editName').value = p.name;
+        getEl('editEmoji').value = p.emoji;
+        getEl('editGroup').value = p.group || '';
+        getEl('editBirth').value = p.birth || '';
+        getEl('editNation').value = p.nation || '';
+        if(p.imageId) {
+            dbGetImg(p.imageId).then(src => { if(src) { tempImage = src; getEl('previewEl').src = src; getEl('imgPreview').style.display='block'; }});
+        }
+        getEl('btnDelete').style.display = 'block';
+    } else {
+        getEl('pmTitle').innerText = 'Neue Person';
+        getEl('editName').value = '';
+        getEl('editEmoji').value = '👤';
+        getEl('editGroup').value = '';
+        getEl('editBirth').value = '';
+        getEl('editNation').value = '';
+    }
+    getEl('iconModal').style.display = 'block';
+}
+
+async function savePerson() {
+    const name = getEl('editName').value.trim();
+    if(!name) return showToast("Name fehlt");
+
+    let imgId = null;
+    if(tempImage) {
+        imgId = 'img_' + Date.now();
+        await dbSaveImg(imgId, tempImage);
+    } else if(currentEditId) {
+        const oldP = people.find(x => x.id === currentEditId);
+        if(oldP && oldP.imageId && tempImage !== 'DELETE') imgId = oldP.imageId;
+    }
+
+    const data = {
+        id: currentEditId || Date.now().toString(),
+        name: name,
+        emoji: getEl('editEmoji').value || '👤',
+        group: getEl('editGroup').value,
+        birth: getEl('editBirth').value,
+        nation: getEl('editNation').value,
+        imageId: imgId,
+        history: (currentEditId ? people.find(x=>x.id===currentEditId).history : [])
+    };
+
+    if(currentEditId) {
+        const idx = people.findIndex(x => x.id === currentEditId);
+        people[idx] = data;
+    } else {
+        people.push(data);
+    }
+
+    saveData(); render(); closeModal('iconModal');
+    if(currentEditId === activePersonId) openDetail(currentEditId);
+}
+
+function deletePerson(id) {
+    if(!confirm("Wirklich löschen?")) return;
+    people = people.filter(x => x.id !== (id || currentEditId));
+    saveData(); render(); closeModal('iconModal'); closeModal('detailModal');
+}
+
+function handleImage(input) {
+    if(input.files[0]) {
+        const r = new FileReader();
+        r.onload = e => {
+            const img = new Image(); img.src = e.target.result;
+            img.onload = () => {
+                const c = document.createElement('canvas'); const ctx = c.getContext('2d');
+                const max = 500; let w=img.width, h=img.height;
+                if(w>h){if(w>max){h*=max/w;w=max}}else{if(h>max){w*=max/h;h=max}}
+                c.width=w; c.height=h; ctx.drawImage(img,0,0,w,h);
+                tempImage = c.toDataURL('image/jpeg', 0.8);
+                getEl('previewEl').src = tempImage; getEl('imgPreview').style.display='block';
+            }
+        };
+        r.readAsDataURL(input.files[0]);
+    }
+}
+function clearImage() { tempImage='DELETE'; getEl('imgPreview').style.display='none'; }
+
+// --- NOTES ---
+function openNoteModal(id) {
+    activePersonId = id;
+    const p = people.find(x => x.id === id);
+    getEl('noteTargetName').innerText = `Eintrag für ${p.name}`;
+    getEl('noteDate').value = new Date().toISOString().slice(0,10);
+    getEl('noteTime').value = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    getEl('noteText').value = '';
+    getEl('noteLoc').value = '';
+    getEl('noteModal').style.display = 'block';
+}
+
+function saveNote() {
+    const p = people.find(x => x.id === activePersonId);
+    if(p) {
+        if(!p.history) p.history = [];
+        p.history.push({
+            date: getEl('noteDate').value,
+            time: getEl('noteTime').value,
+            text: getEl('noteText').value,
+            location: getEl('noteLoc').value
+        });
+        saveData(); render(); closeModal('noteModal');
+        if(getEl('detailModal').style.display==='block') openDetail(activePersonId);
+        showToast("Gespeichert!");
+    }
+}
+
+// --- DETAIL ---
+function openDetail(id) {
+    activePersonId = id;
+    const p = people.find(x => x.id === id);
+    if(!p) return;
+
+    getEl('detailName').innerText = p.name;
+    getEl('detailGroup').innerText = p.group || '';
+    
+    const cover = getEl('detailBg');
+    const avatar = getEl('detailImg');
+    
+    if(p.imageId) {
+        dbGetImg(p.imageId).then(src => {
+            if(src) { avatar.innerHTML = `<img src="${src}" style="width:100%; height:100%; object-fit:cover;">`; cover.src = src; }
+        });
+    } else {
+        avatar.innerText = p.emoji; cover.src = ''; cover.style.backgroundColor = 'var(--accent)';
+    }
+
+    let meta = [];
+    if(p.birth) {
+        const age = new Date().getFullYear() - new Date(p.birth).getFullYear();
+        meta.push(`🎂 ${new Date(p.birth).toLocaleDateString()} (${age})`);
+    }
+    if(p.nation) meta.push(`🏳️ ${p.nation}`);
+    getEl('detailMeta').innerHTML = meta.join('<br>');
+
+    const list = getEl('detailHistory'); list.innerHTML = '';
+    if(p.history && p.history.length > 0) {
+        const sorted = [...p.history].sort((a,b) => b.date.localeCompare(a.date));
+        sorted.forEach(h => {
+            const row = document.createElement('div');
+            row.style.cssText = "background:var(--bg); padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--btn);";
+            row.innerHTML = `<div style="font-size:11px; opacity:0.6;">📅 ${h.date} ${h.time||''} ${h.location?'📍 '+h.location:''}</div><div style="margin-top:4px;">"${h.text}"</div>`;
+            list.appendChild(row);
+        });
+    } else { list.innerHTML = '<div style="opacity:0.5; text-align:center;">Keine Einträge.</div>'; }
+    getEl('detailModal').style.display='block';
+}
+function openEditFromDetail() { closeModal('detailModal'); openPersonModal(activePersonId); }
+
+// --- COMPLEX CLOUD SYNC (CRYPTO + CHUNK) ---
+const enc = new TextEncoder(); const dec = new TextDecoder();
+async function getKey(pwd, salt) {
+    const k = await window.crypto.subtle.importKey("raw", enc.encode(pwd), {name:"PBKDF2"}, false, ["deriveKey"]);
+    return window.crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:100000, hash:"SHA-256"}, k, {name:"AES-GCM", length:256}, true, ["encrypt","decrypt"]);
+}
+function bufferToBase64(buf) { return new Promise(r => { const b=new Blob([buf]); const rd=new FileReader(); rd.onload=()=>r(rd.result.split(',')[1]); rd.readAsDataURL(b); }); }
+
+// UI Sync Management
+function renderSyncChannels() {
+    const s = getEl('syncChannelSelect'); s.innerHTML = '<option value="" disabled selected>-- Kanal wählen --</option>';
+    syncChannels.forEach(c => {
+        const opt = document.createElement('option'); opt.value = c.id; opt.innerText = (c.password ? "🔒 " : "") + c.name;
+        if(c.id === activeSyncId) opt.selected = true;
+        s.appendChild(opt);
+    });
+}
+function onSyncChannelChange() { activeSyncId = getEl('syncChannelSelect').value; localStorage.setItem('people_active_sync_id', activeSyncId); getEl('syncListItems').style.display='none'; }
+function openAddSyncModal() { getEl('newSyncName').value=''; getEl('newSyncTopic').value=''; getEl('newSyncPass').value=''; generateRandomTopic(); getEl('syncAddModal').style.display='block'; }
+function generateRandomTopic() { 
+    const c = 'abcdefghijklmnopqrstuvwxyz0123456789'; let r = 'people-sync-'; 
+    for(let i=0;i<20;i++) r += c[Math.floor(Math.random()*c.length)]; 
+    getEl('newSyncTopic').value = r; 
+}
+function saveNewSyncChannel() {
+    const n = getEl('newSyncName').value; const t = getEl('newSyncTopic').value; const p = getEl('newSyncPass').value;
+    if(!n || !t) return alert("Name/Topic Pflicht!");
+    syncChannels.push({ id: Date.now().toString(), name: n, topic: t, password: p });
+    localStorage.setItem('people_sync_channels', JSON.stringify(syncChannels));
+    renderSyncChannels(); closeModal('syncAddModal');
+}
+function deleteSyncChannel() {
+    if(!activeSyncId) return;
+    syncChannels = syncChannels.filter(c => c.id !== activeSyncId);
+    localStorage.setItem('people_sync_channels', JSON.stringify(syncChannels));
+    activeSyncId = null; renderSyncChannels();
+}
+
+// UPLOAD
+async function startCloudPush() {
+    const ch = syncChannels.find(c => c.id === activeSyncId);
+    if(!ch) return alert("Kein Kanal gewählt!");
+    isSyncing = true; abortSyncFlag = false;
+    
+    getEl('syncProgressModal').style.display='flex';
+    getEl('syncStatus').innerText = "Packe Daten...";
+    getEl('syncBar').style.width = "5%";
+
+    // Full Dump
+    const db = await dbPromise;
+    const keys = await new Promise(r => { const req = db.transaction(STORE_IMGS).objectStore(STORE_IMGS).getAllKeys(); req.onsuccess=()=>r(req.result); });
+    const allImgs = {}; for(let k of keys) allImgs[k] = await dbGetImg(k);
+    
+    let payload = JSON.stringify({ people, images: allImgs });
+    let isEnc = false;
+
+    if(ch.password) {
+        getEl('syncStatus').innerText = "Verschlüssele...";
+        const salt = window.crypto.getRandomValues(new Uint8Array(16));
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const key = await getKey(ch.password, salt);
+        const encrypted = await window.crypto.subtle.encrypt({name:"AES-GCM", iv}, key, enc.encode(payload));
+        const buffer = new Uint8Array(salt.byteLength + iv.byteLength + encrypted.byteLength);
+        buffer.set(salt, 0); buffer.set(iv, 16); buffer.set(new Uint8Array(encrypted), 28);
+        payload = await bufferToBase64(buffer);
+        isEnc = true;
+    }
+
+    // Chunking
+    const CHUNK = 1024 * 1024; // 1MB
+    const total = Math.ceil(payload.length / CHUNK);
+    const id = 'bkp_' + Date.now();
+
+    // Header
+    await fetch(`https://ntfy.sh/${ch.topic}`, { method:'PUT', body:JSON.stringify({ type:'header', id, chunks:total, size:payload.length, encrypted:isEnc, name:ch.name }), headers:{'Title':'Sync Header'} });
+
+    for(let i=0; i<total; i++) {
+        if(abortSyncFlag) throw new Error("Abbruch");
+        getEl('syncStatus').innerText = `Sende ${i+1}/${total}...`;
+        getEl('syncBar').style.width = ((i+1)/total*100)+'%';
+        await fetch(`https://ntfy.sh/${ch.topic}`, { method:'PUT', body:payload.substring(i*CHUNK, (i+1)*CHUNK), headers:{'Filename':`${id}_part_${i}`, 'Title':`Part ${i}`} });
+    }
+    
+    getEl('syncStatus').innerText = "Fertig!";
+    setTimeout(() => { getEl('syncProgressModal').style.display='none'; isSyncing=false; }, 1000);
+}
+
+// CHECK & DOWNLOAD
+async function checkForCloudBackups() {
+    const ch = syncChannels.find(c => c.id === activeSyncId);
+    if(!ch) return alert("Kein Kanal!");
+    const list = getEl('syncListItems'); list.style.display='block'; list.innerHTML='Lade...';
+    
+    try {
+        const res = await fetch(`https://ntfy.sh/${ch.topic}/json?since=12h&poll=1`);
+        const txt = await res.text();
+        const lines = txt.trim().split('\n');
+        const backups = [];
+        lines.forEach(l => {
+            try {
+                const msg = JSON.parse(l);
+                if(msg.event === 'message' && !msg.attachment) {
+                    const d = JSON.parse(msg.message);
+                    if(d.type === 'header') backups.push(d);
+                }
+            } catch(e){}
+        });
+        
+        list.innerHTML = '';
+        if(backups.length === 0) list.innerHTML = 'Keine Backups gefunden.';
+        
+        backups.forEach(b => {
+            const btn = document.createElement('button');
+            btn.className = "sync-main-btn"; btn.style.width="100%"; btn.style.marginTop="5px";
+            btn.innerHTML = `📥 ${new Date(parseInt(b.id.split('_')[1])).toLocaleString()} <br> ${b.encrypted?'🔒':''} ${b.size} bytes`;
+            btn.onclick = () => restoreFromCloud(b.id, b.chunks, b.encrypted);
+            list.appendChild(btn);
+        });
+    } catch(e) { list.innerText = "Fehler beim Abruf."; }
+}
+
+async function restoreFromCloud(id, chunks, isEnc) {
+    const ch = syncChannels.find(c => c.id === activeSyncId);
+    if(isEnc && !ch.password) return alert("Passwort fehlt!");
+    
+    isSyncing = true; abortSyncFlag = false;
+    getEl('syncProgressModal').style.display='flex';
+    
+    try {
+        const res = await fetch(`https://ntfy.sh/${ch.topic}/json?since=12h&poll=1`);
+        const txt = await res.text();
+        const lines = txt.trim().split('\n');
+        let parts = [];
+        
+        lines.forEach(l => {
+            try {
+                const m = JSON.parse(l);
+                if(m.attachment && m.attachment.name.startsWith(id)) {
+                    parts.push({ idx: parseInt(m.attachment.name.split('_part_')[1]), url: m.attachment.url });
+                }
+            } catch(e){}
+        });
+        
+        if(parts.length < chunks) throw new Error("Unvollständig!");
+        parts.sort((a,b) => a.idx - b.idx);
+        
+        let fullStr = "";
+        for(let i=0; i<parts.length; i++) {
+            getEl('syncStatus').innerText = `Lade ${i+1}/${chunks}...`;
+            getEl('syncBar').style.width = ((i+1)/chunks*100)+'%';
+            const r = await fetch(parts[i].url);
+            fullStr += await r.text();
+        }
+
+        if(isEnc) {
+            getEl('syncStatus').innerText = "Entschlüssele...";
+            const bin = atob(fullStr);
+            const bytes = new Uint8Array(bin.length);
+            for(let i=0; i<bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            
+            const salt = bytes.slice(0, 16);
+            const iv = bytes.slice(16, 28);
+            const data = bytes.slice(28);
+            
+            const key = await getKey(ch.password, salt);
+            const decBuf = await window.crypto.subtle.decrypt({name:"AES-GCM", iv}, key, data);
+            fullStr = dec.decode(decBuf);
+        }
+
+        const data = JSON.parse(fullStr);
+        people = data.people || [];
+        saveData();
+        if(data.images) { for(let [k,v] of Object.entries(data.images)) await dbSaveImg(k,v); }
+        render();
+        getEl('syncProgressModal').style.display='none';
+        isSyncing = false;
+        alert("Wiederhergestellt!");
+
+    } catch(e) { alert("Fehler: "+e); getEl('syncProgressModal').style.display='none'; isSyncing=false; }
+}
+function abortSync() { abortSyncFlag = true; }
+
+// --- BACKUP ---
+function downloadBackup() {
+    const a = document.createElement('a'); a.href = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(people)); a.download = 'people_backup.json'; a.click();
+}
+function importBackup(input) {
+    const fr = new FileReader();
+    fr.onload = e => { people = JSON.parse(e.target.result); saveData(); render(); showToast("Importiert!"); };
+    fr.readAsText(input.files[0]);
+}
+function hardReset() { if(confirm("Alles löschen?")) { localStorage.clear(); location.reload(); } }
+function toggleDarkMode() { document.body.classList.toggle('dark'); localStorage.setItem('dark', document.body.classList.contains('dark')); }
+if(localStorage.getItem('dark')==='true') { document.body.classList.add('dark'); getEl('darkToggle').checked=true; }
+
+
+/* =========================================
+   ADD-ON: ULTIMATE MODES (Gallery & Notes)
+   ========================================= */
+
+// Globale Variable für den Modus
+let appMode = 'people'; // people, notes, gallery
+
+// 1. Modus umschalten
+function setMicroMode(mode) {
+    appMode = mode;
+    // UI Update
+    document.getElementById('lbl-mode').innerText = mode.toUpperCase();
+    document.getElementById('menu-mode').classList.remove('show');
+    // Neu rendern
+    render();
+}
+
+// 2. Die verbesserte Render-Funktion (Ersetzt die alte automatisch)
+const originalRender = render; // Backup falls nötig
+
+render = function() {
+    const list = document.getElementById('list');
+    const query = document.getElementById('listSearch').value.toLowerCase();
+    list.innerHTML = '';
+
+    // A) GALERIE MODUS
+    if (appMode === 'gallery') {
+        const grid = document.createElement('div'); 
+        grid.className = 'grid-container';
+        let found = false;
+
+        people.forEach(p => {
+            // Profilbild checken
+            if (p.imageId && p.name.toLowerCase().includes(query)) {
+                found = true;
+                addGalleryItem(grid, p.imageId, p.name, "Profil", p.id);
+            }
+            // Verlauf checken
+            if (p.history) {
+                p.history.forEach(h => {
+                    // Hat Eintrag ein Bild? (Wir checken ob imageId existiert ODER ob wir es aus der DB laden können)
+                    // HINWEIS: Hier gehen wir davon aus, dass Bilder im Eintrag 'imageId' heißen (wie im Note Modal gespeichert)
+                    if (h.imageId && (p.name.toLowerCase().includes(query) || (h.text && h.text.toLowerCase().includes(query)))) {
+                        found = true;
+                        addGalleryItem(grid, h.imageId, p.name, h.date, p.id);
+                    }
+                });
+            }
+        });
+
+        if (!found) {
+            list.innerHTML = '<div style="text-align:center; opacity:0.5; padding:40px;">Keine Fotos gefunden.</div>';
+        } else {
+            list.appendChild(grid);
+        }
+        return;
+    }
+
+    // B) NOTIZEN MODUS (Alle Einträge flach anzeigen)
+    if (appMode === 'notes') {
+        let allNotes = [];
+        people.forEach(p => {
+            if (p.history) {
+                p.history.forEach(h => {
+                    if (p.name.toLowerCase().includes(query) || (h.text && h.text.toLowerCase().includes(query))) {
+                        allNotes.push({ ...h, personName: p.name, personId: p.id, personEmoji: p.emoji });
+                    }
+                });
+            }
+        });
+
+        // Neueste zuerst
+        allNotes.sort((a, b) => b.date.localeCompare(a.date));
+
+        if (allNotes.length === 0) {
+            list.innerHTML = '<div style="text-align:center; opacity:0.5; padding:40px;">Keine Notizen gefunden.</div>';
+            return;
+        }
+
+        allNotes.forEach(n => {
+            const div = document.createElement('div');
+            div.className = 'row fade-in';
+            div.style.alignItems = "flex-start"; // Text kann lang sein
+            
+            // Check ob Bild dabei
+            const imgIcon = n.imageId ? '📷 ' : '';
+
+            div.innerHTML = `
+                <div style="font-size:24px; padding:10px 0 0 5px;">${n.personEmoji}</div>
+                <div style="flex:1; padding-left:10px;" onclick="openDetail('${n.personId}')">
+                    <div style="font-size:12px; color:var(--accent); font-weight:bold; margin-bottom:4px;">
+                        ${n.date} • ${n.personName}
+                    </div>
+                    <div style="font-style:italic; font-size:14px; line-height:1.4;">
+                        ${imgIcon}"${n.text}"
+                    </div>
+                    ${n.location ? `<div style="font-size:11px; opacity:0.7; margin-top:4px;">📍 ${n.location}</div>` : ''}
+                </div>
+            `;
+            list.appendChild(div);
+        });
+        return;
+    }
+
+    // C) PERSONEN MODUS (Der Standard Code von oben)
+    // Wir filtern und nutzen die viewMode Logik (List/Grid)
+    let filtered = people.filter(p => p.name.toLowerCase().includes(query));
+    
+    // Sortieren (Logik von oben übernommen)
+    filtered.sort((a,b) => {
+        if(typeof sortMode !== 'undefined' && sortMode === 'last') {
+            const dateA = (a.history && a.history.length) ? a.history[a.history.length-1].date : '0000';
+            const dateB = (b.history && b.history.length) ? b.history[b.history.length-1].date : '0000';
+            return dateB.localeCompare(dateA);
+        }
+        return a.name.localeCompare(b.name);
+    });
+
+    if (filtered.length === 0) {
+        document.getElementById('emptyState').style.display = 'block';
+        return;
+    }
+    document.getElementById('emptyState').style.display = 'none';
+
+    // GRID VIEW FÜR PERSONEN
+    if (viewMode === 'grid') {
+        const grid = document.createElement('div'); 
+        grid.className = 'grid-container';
+        filtered.forEach(p => {
+            const el = document.createElement('div'); 
+            el.className = 'grid-item fade-in';
+            el.innerHTML = `
+                <div class="grid-bg-img" id="bg-${p.id}" style="background:var(--btn);"></div>
+                <div class="grid-menu-btn" onclick="openCtxMenu('${p.id}', event)">⋮</div>
+                <div class="grid-info" onclick="openDetail('${p.id}')">
+                    <div style="font-size:18px">${p.emoji}</div>
+                    <div class="grid-name">${p.name}</div>
+                    <div style="font-size:11px; opacity:0.8;">${p.group || 'Kontakt'}</div>
+                </div>`;
+            grid.appendChild(el);
+            if(p.imageId) dbGetImg(p.imageId).then(src => { if(src) document.getElementById('bg-'+p.id).style.backgroundImage = `url(${src})`; });
+        });
+        list.appendChild(grid);
+    } 
+    // LIST VIEW FÜR PERSONEN
+    else {
+        filtered.forEach(p => {
+            const count = p.history ? p.history.length : 0;
+            const row = document.createElement('div'); 
+            row.className = 'row fade-in';
+            row.innerHTML = `
+                <div class="row-main" onclick="openDetail('${p.id}')">
+                    <div class="list-visual" id="vis-${p.id}">${p.emoji}</div>
+                    <div class="list-content">
+                        <div class="list-name">${p.name}</div>
+                        <div class="list-sub">${p.group || 'Kontakt'} • ${count} Begegnungen</div>
+                    </div>
+                </div>
+                <div class="row-menu" onclick="openCtxMenu('${p.id}', event)">⋮</div>
+            `;
+            list.appendChild(row);
+            if(p.imageId) dbGetImg(p.imageId).then(src => { if(src) document.getElementById('vis-'+p.id).innerHTML = `<img src="${src}">`; });
+        });
+    }
+};
+
+// Helfer für Galerie
+function addGalleryItem(container, imgId, title, sub, personId) {
+    const el = document.createElement('div'); 
+    el.className = 'grid-item fade-in';
+    // ID für das Bild-Div generieren
+    const divId = 'gal-' + Math.random().toString(36).substr(2, 9);
+    
+    el.innerHTML = `
+        <div class="grid-bg-img" id="${divId}" style="background:var(--btn);"></div>
+        <div class="grid-overlay"></div>
+        <div class="grid-info">
+            <div style="font-weight:bold;">${title}</div>
+            <div style="font-size:10px;">${sub}</div>
+        </div>`;
+        
+    el.onclick = () => openDetail(personId);
+    container.appendChild(el);
+    
+    // Bild asynchron laden
+    dbGetImg(imgId).then(src => { 
+        if(src) document.getElementById(divId).style.backgroundImage = `url(${src})`; 
+    });
+}
+
+// Initialer Aufruf, damit die neuen Modi direkt verfügbar sind
+<!-- === REPARATUR SCRIPT (Fügt die fehlende Logik hinzu) === -->
+
+
+// 1. Die Umschalt-Funktion (Muss global sein)
+window.toggleMicroMenu = function(menuId) {
+    // WICHTIG: Verhindert, dass der Klick "durchrutscht" und das Menü sofort wieder schließt
+    if (window.event) {
+        window.event.stopPropagation();
+        window.event.preventDefault();
+    }
+
+    const menu = document.getElementById(menuId);
+    if (!menu) {
+        console.error("Menü nicht gefunden: " + menuId);
+        return;
+    }
+
+    // Status prüfen
+    const isOpen = menu.classList.contains('show');
+
+    // Erstmal ALLE Menüs schließen (Reset)
+    document.querySelectorAll('.micro-menu').forEach(el => el.classList.remove('show'));
+    document.querySelectorAll('.micro-btn').forEach(el => el.classList.remove('is-open'));
+
+    // Wenn es zu war -> Aufmachen
+    if (!isOpen) {
+        menu.classList.add('show');
+        // Optional: Button aktiv färben
+        const btn = menu.previousElementSibling; 
+        if(btn) btn.classList.add('is-open');
+    }
+};
+
+// 2. Klick daneben -> Menü schließen
+document.addEventListener('click', function(e) {
+    // Nur schließen, wenn man NICHT auf den Button oder das Menü klickt
+    if (!e.target.closest('.micro-btn-wrap')) {
+        document.querySelectorAll('.micro-menu').forEach(el => el.classList.remove('show'));
+        document.querySelectorAll('.micro-btn').forEach(el => el.classList.remove('is-open'));
+    }
+});
+
+// 3. Modus Umschalten (Personen / Notizen / Fotos)
+window.setMicroMode = function(mode) {
+    // Globale Variable aktualisieren (falls du sie appMode genannt hast)
+    if(typeof appMode !== 'undefined') appMode = mode;
+    
+    // UI Text ändern
+    const label = document.getElementById('lbl-mode');
+    if(label) {
+        if(mode === 'people') label.innerText = 'PEOPLE';
+        if(mode === 'notes') label.innerText = 'NOTIZEN';
+        if(mode === 'gallery') label.innerText = 'FOTOS';
+    }
+
+    // Menü schließen
+    document.querySelectorAll('.micro-menu').forEach(el => el.classList.remove('show'));
+
+    // Liste neu laden (ruft deine render funktion auf)
+    if(typeof render === 'function') render();
+};
+
+
+// START
+renderSyncChannels();
+render();
+
+</script>
+</body>
+</html>
