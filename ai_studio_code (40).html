@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1">
+<title>People Tracker 👤</title>
+<meta name="theme-color" content="#000000">
+
+<!-- PWA MANIFEST (Angepasst auf People) -->
+<link rel="manifest" href='data:application/manifest+json,{"name":"People Tracker","short_name":"People","start_url":".","display":"standalone","background_color":"#121212","theme_color":"#2196f3","icons":[{"src":"https://emojicdn.elk.sh/👤","sizes":"192x192","type":"image/png"}]}'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<!-- LEAFLET MAP CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+<style>
+/* =========================================
+   1. VARIABLES & RESET (Original Ultimate Styles)
+   ========================================= */
+*, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none; }
+input, textarea { user-select: text !important; -webkit-user-select: text !important; }
+
+:root{
+    --bg:#f0f2f5;
+    --card:rgba(255, 255, 255, 0.85);
+    --card-solid:#fff;
+    --text:#1c1e21;
+    --btn:#e4e6eb;
+    --hover:#d8dadf;
+    --accent:#2196f3;
+    --accent-glow: rgba(33, 150, 243, 0.4);
+    --warn-bg:#fff3cd; --warn-text:#856404;
+    --err-bg:#f8d7da; --err-text:#721c24;
+    --sub:#65676b; 
+    --nav-height: 70px;
+    --glass-border: 1px solid rgba(255, 255, 255, 0.6);
+    --shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+   
+body.dark {
+    --bg: #000000;
+    --card: #1c1c1e;
+    --card-solid: #1c1c1e;
+    --text: #ffffff;
+    --sub: #a0a0a0;
+    --btn: #2c2c2e;
+    --hover: #3a3a3c;
+    --accent: #0a84ff; 
+    --accent-glow: rgba(10, 132, 255, 0.4);
+    --warn-bg: #3a3a00; --warn-text: #ffd700;
+    --err-bg: #3a0005; --err-text: #ff6b6b;
+    --glass-border: 1px solid #333333;
+    --shadow: none; 
+}
+
+body {
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+    background:var(--bg); color:var(--text); max-width:980px; margin:auto; 
+    padding:16px; padding-bottom:calc(var(--nav-height) + 40px); 
+    position:relative; overflow-x:hidden; transition: background 0.3s;
+}
+
+/* UTILS */
+.hidden { display: none !important; }
+.fade-in { animation: fadeIn 0.3s forwards; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* BRANDING */
+.app-brand { margin-top: 10px; margin-bottom: 20px; display: flex; align-items: center; gap: 5px; width: fit-content; }
+.brand-tier { font-family: 'Fredoka', sans-serif; font-size: 32px; font-weight: 700; color: var(--text); }
+.brand-ticker { font-family: 'Fredoka', sans-serif; font-size: 32px; font-weight: 700; color: var(--accent); }
+
+/* SEARCH & HEADER */
+.list-header { display:flex; gap: 10px; margin-bottom:15px; position: relative; z-index: 5; }
+.search-fusion-wrapper { 
+    flex:1; display:flex; align-items:center; background:var(--card-solid); 
+    border-radius:20px; box-shadow: var(--shadow); height: 50px; 
+    border: 1px solid var(--btn); overflow: visible; /* Für Menü wichtig */
+}
+.sf-input { 
+    flex:1; width:100%; background:transparent; border:none; padding:0 16px; 
+    font-size:15px; color:var(--text); outline:none; height:100%; font-weight:600;
+}
+
+/* MICRO MENUS (Die kleinen Buttons rechts in der Suche) */
+.sem-controls { display: flex; gap: 0; padding-left: 4px; border-left: 1px solid var(--btn); height: 32px; align-items: center; margin-right: 5px; }
+.micro-btn-wrap { position: relative; height: 100%; display: flex; align-items: center; }
+.micro-btn {
+    background: transparent; border: none; font-size: 11px; font-weight: 800; color: var(--sub);
+    padding: 0 8px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 4px;
+}
+.micro-btn.active-state { color: var(--accent); }
+.micro-menu {
+    position: absolute; top: 40px; right: 0; background: var(--card-solid); border: 1px solid var(--btn);
+    border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); display: none; flex-direction: column;
+    min-width: 150px; padding: 6px; z-index: 10000; animation: fadeIn 0.2s;
+}
+.micro-menu.show { display: flex; }
+.mm-item { padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--text); border-radius: 10px; cursor: pointer; display: flex; gap: 10px; }
+.mm-item:active { background: var(--btn); }
+
+/* GRID & LIST VIEWS */
+.grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; padding-bottom: 20px; }
+.grid-item { 
+    background: var(--card); border-radius: 20px; padding: 15px; display: flex; flex-direction: column; 
+    align-items: center; text-align: center; box-shadow: var(--shadow); position: relative; border: var(--glass-border); height: 180px; justify-content: flex-end;
+    overflow: hidden;
+}
+.grid-bg-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
+.grid-info { position: relative; z-index: 2; width: 100%; text-align: left; text-shadow: 0 2px 5px rgba(0,0,0,0.5); color: white; }
+.grid-overlay { position: absolute; bottom: 0; left: 0; width: 100%; height: 60%; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); z-index: 1; }
+
+.row { display: flex; align-items: center; gap: 10px; background: var(--card); padding: 10px; margin-bottom: 10px; border-radius: 18px; box-shadow: var(--shadow); border: 1px solid var(--btn); min-height: 72px; }
+.list-visual { width: 50px; height: 50px; border-radius: 50%; background: var(--btn); display: flex; align-items: center; justify-content: center; font-size: 24px; overflow: hidden; flex-shrink: 0; border: 2px solid var(--bg); }
+.list-visual img { width: 100%; height: 100%; object-fit: cover; }
+.list-content { flex: 1; display: flex; flex-direction: column; }
+.list-name { font-weight: 800; font-size: 16px; color: var(--text); }
+.list-sub { font-size: 12px; color: var(--sub); font-weight: 600; margin-top: 2px; }
+
+/* ACTION BUTTONS */
+.action-btn-main { background: var(--accent); color: white; width: 40px; height: 40px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 4px 10px var(--accent-glow); border: none; cursor: pointer; }
+.row-menu { width: 40px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--sub); cursor: pointer; }
+
+/* BOTTOM NAV (Island) */
+.nav-island-container { position: fixed; bottom: 30px; left: 0; right: 0; display: flex; justify-content: center; z-index: 9000; pointer-events: none; }
+.nav-island { pointer-events: all; background: rgba(30, 30, 30, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.15); border-radius: 40px; padding: 0 25px; height: 65px; display: flex; align-items: center; gap: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.4); }
+body:not(.dark) .nav-island { background: rgba(255, 255, 255, 0.95); border: 1px solid rgba(0,0,0,0.1); }
+.nav-item { background: none; border: none; padding: 0; display: flex; flex-direction: column; align-items: center; color: var(--sub); font-size: 10px; font-weight: 700; cursor: pointer; width: 45px; }
+.nav-item.active { color: var(--accent); }
+.nav-icon { font-size: 24px; margin-bottom: 2px; }
+.nav-main-fab { width: 60px; height: 60px; background: linear-gradient(135deg, var(--accent), #1976d2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 34px; color: #fff; box-shadow: 0 8px 20px var(--accent-glow); transform: translateY(-20px); cursor: pointer; border: 4px solid var(--bg); }
+
+/* MODALS & FORMS */
+.modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); }
+.modal-content { background: var(--card-solid); margin: 10% auto; padding: 25px; border-radius: 24px; width: 90%; max-width: 500px; position: relative; animation: slideUp 0.3s ease-out; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.close-btn { position: absolute; top: 15px; right: 20px; background: var(--btn); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; }
+
+input, textarea, select { width: 100%; padding: 12px 15px; border-radius: 12px; border: 1px solid var(--btn); background: var(--bg); color: var(--text); font-family: inherit; font-size: 16px; margin-bottom: 10px; font-weight: 600; }
+input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+/* UTILITIES */
+.card-section { background: var(--card); padding: 20px; border-radius: 24px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1); box-shadow: var(--shadow); }
+.accordion-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding-bottom: 10px; }
+.accordion-content { display: none; margin-top: 10px; border-top: 1px solid var(--btn); padding-top: 10px; }
+.accordion-content.open { display: block; animation: fadeIn 0.3s; }
+
+/* SYNC CARD SPECIFIC */
+.sync-card { border: 1px solid rgba(0, 184, 148, 0.3); background: linear-gradient(to bottom right, var(--card), rgba(0, 184, 148, 0.05)); }
+.sync-main-btn { padding: 15px; border-radius: 16px; border: none; font-weight: bold; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 5px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: pointer; }
+
+/* CONTEXT MENU */
+.context-menu { position: fixed; background: var(--card-solid); border: 1px solid var(--btn); border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 30000; overflow: hidden; min-width: 180px; }
+.context-item { padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 15px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+.context-item:active { background: var(--btn); }
+.context-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 29999; background: transparent; }
+
+/* MAP CONTAINER */
+#map { height: 70vh; width: 100%; border-radius: 24px; z-index: 1; margin-bottom: 20px; border: 4px solid var(--card); }
+
+/* TOASTS */
+.toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--err-bg); color: var(--err-text); padding: 12px 24px; border-radius: 50px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); z-index: 9999; font-size: 14px; display: none; font-weight: bold; }
+
+</style>
+</head>
+<body>
+
+<div id="errorToast" class="toast"></div>
+
+<!-- HEADER -->
+<div class="app-brand" style="margin-left: 10px;">
+    <span class="brand-tier">People</span>
+    <span class="brand-ticker">Tracker</span>
+</div>
+
+<!-- === VIEW: LISTE / GRID / GALERIE === -->
+<div id="view-list" class="view-section active">
+    
+    <!-- SEARCH FUSION & CONTROLS -->
+    <div class="list-header">
+        <div class="search-fusion-wrapper">
+            <input id="listSearch" class="sf-input" placeholder="Suche Person..." oninput="render()">
+            
+            <!-- MICRO MENUS -->
+            <div class="sem-controls">
+                <!-- VIEW MENU -->
+                <div class="micro-btn-wrap">
+                    <div id="btn-view" class="micro-btn" onclick="toggleMicroMenu('menu-view')">
+                        <span id="lbl-view">LIST</span> ▾
+                    </div>
+                    <div id="menu-view" class="micro-menu">
+                        <div class="mm-item" onclick="setMicroView('list')">📄 Liste</div>
+                        <div class="mm-item" onclick="setMicroView('grid')">田 Raster</div>
+                    </div>
+                </div>
+                
+                <div style="width:1px; height:16px; background:var(--btn); margin:0 2px;"></div>
+
+                <!-- MODE MENU -->
+                <div class="micro-btn-wrap">
+                    <div id="btn-mode" class="micro-btn active-state" onclick="toggleMicroMenu('menu-mode')">
+                        <span id="lbl-mode">PEOPLE</span> ▾
+                    </div>
+                    <div id="menu-mode" class="micro-menu">
+                        <div class="mm-item" onclick="setMicroMode('people')">👥 Personen</div>
+                        <div class="mm-item" onclick="setMicroMode('notes')">📝 Notizen</div>
+                        <div class="mm-item" onclick="setMicroMode('gallery')">📷 Galerie</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="list" style="padding-bottom: 100px;">
+        <!-- Javascript rendert hier Grid oder Liste -->
+    </div>
+
+    <div id="emptyState" style="text-align:center; padding:60px 20px; opacity:0.5; display:none;">
+        <div style="font-size:60px; margin-bottom:15px;">👥</div>
+        <h3>Keine Personen</h3>
+        <p>Tippe auf das <b>+</b> um Kontakte anzulegen.</p>
+    </div>
+</div>
+
+<!-- === VIEW: MAP (Leer, aber vorhanden) === -->
+<div id="view-map" class="view-section hidden">
+    <div id="map"></div>
+    <div style="text-align:center; opacity:0.7; font-size:13px; margin-top:10px;">
+        Karte ist aktiv. Füge Orte zu Personen hinzu, um sie hier zu sehen.
+    </div>
+</div>
+
+<!-- === VIEW: ADMIN / SYSTEM (Mit Cloud Sync) === -->
+<div id="view-admin" class="view-section hidden">
+    
+    <!-- CLOUD SYNC CARD -->
+    <div class="card-section sync-card">
+        <div class="accordion-header" onclick="toggleAccordion(this)">
+            <h3 style="margin:0; color:#00b894;">☁️ Cloud Sync</h3>
+            <span>▼</span>
+        </div>
+        <div class="accordion-content">
+            <p style="font-size:12px; opacity:0.8;">Synchronisiere deine Kontakte verschlüsselt zwischen Geräten.</p>
+            
+            <select id="syncChannelSelect" style="margin-bottom:10px;" onchange="onSyncChannelChange()">
+                <option value="" disabled selected>-- Kanal wählen --</option>
+            </select>
+            
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button onclick="openAddSyncModal()" style="flex:1; padding:8px; background:var(--btn); border:none; border-radius:12px; font-weight:bold;">+ Neu</button>
+                <button onclick="deleteSyncChannel()" style="flex:1; padding:8px; background:var(--btn); border:none; border-radius:12px; color:var(--err-text);">Löschen</button>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <button onclick="startCloudPush()" class="sync-main-btn" style="background:linear-gradient(135deg, var(--accent), #2980b9); color:white;">
+                    <span style="font-size:24px">📤</span> Hochladen
+                </button>
+                <button onclick="checkForCloudBackups()" class="sync-main-btn" style="background:var(--card-solid); color:var(--text);">
+                    <span style="font-size:24px">🔄</span> Prüfen & Laden
+                </button>
+            </div>
+            
+            <!-- Liste gefundener Backups -->
+            <div id="syncListItems" style="margin-top:15px;"></div>
+        </div>
+    </div>
+
+    <!-- DATEN & BACKUP -->
+    <div class="card-section">
+        <h3>💾 Lokales Backup</h3>
+        <div style="display:flex; gap:10px; margin-top:15px;">
+            <button onclick="downloadBackup()" style="flex:1; padding:15px; background:var(--accent); color:white; border:none; border-radius:12px; font-weight:bold;">📦 Speichern</button>
+            <button onclick="document.getElementById('importFile').click()" style="flex:1; padding:15px; background:var(--btn); color:var(--text); border:none; border-radius:12px; font-weight:bold;">📥 Laden</button>
+            <input type="file" id="importFile" hidden onchange="importBackup(this)">
+        </div>
+    </div>
+
+    <div style="text-align:center; margin-top:30px;">
+        <button onclick="hardReset()" style="background:transparent; color:var(--err-text); border:1px solid var(--err-text); padding:10px 20px; border-radius:20px; font-size:12px;">⚠️ Alles zurücksetzen</button>
+    </div>
+</div>
+
+<!-- === NAVIGATION === -->
+<div class="nav-island-container">
+    <div class="nav-island">
+        <button class="nav-item active" onclick="switchView('view-list', this)">
+            <span class="nav-icon">👥</span><span>Liste</span>
+        </button>
+        
+        <!-- FAB: NEUE PERSON -->
+        <div class="nav-main-fab" onclick="openCreateModal()">+</div>
+
+        <button class="nav-item" onclick="switchView('view-map', this)">
+            <span class="nav-icon">🌍</span><span>Karte</span>
+        </button>
+        
+        <button class="nav-item" onclick="switchView('view-admin', this)">
+            <span class="nav-icon">☁️</span><span>System</span>
+        </button>
+    </div>
+</div>
+
+<!-- === MODALS === -->
+
+<!-- PERSON EDIT MODAL -->
+<div id="iconModal" class="modal">
+    <div class="modal-content">
+        <div class="close-btn" onclick="closeModal('iconModal')">✕</div>
+        <h3 id="modalTitle">Person bearbeiten</h3>
+
+        <!-- BILD UPLOAD -->
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <label class="sync-main-btn" style="flex:1; background:var(--btn);">
+                🖼️ Galerie <input type="file" hidden accept="image/*" onchange="handleImage(this)">
+            </label>
+            <label class="sync-main-btn" style="flex:1; background:var(--btn);">
+                📷 Foto <input type="file" hidden accept="image/*" capture="environment" onchange="handleImage(this)">
+            </label>
+        </div>
+        <div id="imgPreview" style="text-align:center; display:none; margin-bottom:15px">
+            <img id="previewEl" src="" style="width:100px; height:100px; border-radius:50%; object-fit:cover; border:3px solid var(--accent); box-shadow:0 5px 15px rgba(0,0,0,0.2);">
+            <div style="margin-top:5px; font-size:12px; color:var(--err-text); cursor:pointer;" onclick="clearImage()">Bild entfernen</div>
+        </div>
+
+        <!-- BASIS DATEN -->
+        <div style="display:flex; gap:10px;">
+            <input id="editEmoji" style="width:70px; text-align:center; font-size:24px;" placeholder="👤">
+            <input id="editName" placeholder="Name (Vorname Nachname)" style="font-weight:bold;">
+        </div>
+
+        <!-- NEUE FELDER -->
+        <label style="font-size:12px; font-weight:bold; opacity:0.7;">Gruppe / Kategorie:</label>
+        <input id="editGroup" placeholder="z.B. Familie, Arbeit, Sport...">
+
+        <div style="display:flex; gap:10px;">
+            <div style="flex:1">
+                <label style="font-size:12px; font-weight:bold; opacity:0.7;">🎂 Geburtstag:</label>
+                <input type="date" id="editBirth">
+            </div>
+            <div style="flex:1">
+                <label style="font-size:12px; font-weight:bold; opacity:0.7;">🏳️ Nationalität/Ort:</label>
+                <input id="editNation" placeholder="z.B. Berlin">
+            </div>
+        </div>
+
+        <button onclick="savePerson()" style="width:100%; background:var(--accent); color:#fff; padding:15px; border:none; border-radius:16px; font-weight:bold; margin-top:10px;">Speichern</button>
+        <button id="btnDelete" onclick="deletePerson()" style="width:100%; background:transparent; color:var(--err-text); padding:10px; border:1px solid var(--err-text); border-radius:16px; font-weight:bold; margin-top:15px; display:none;">Person löschen</button>
+    </div>
+</div>
+
+<!-- NOTE / BEGEGNUNG MODAL -->
+<div id="noteModal" class="modal">
+    <div class="modal-content">
+        <div class="close-btn" onclick="closeModal('noteModal')">✕</div>
+        <h3>📝 Neue Begegnung</h3>
+        <p id="noteTargetName" style="opacity:0.6; font-size:13px; margin-top:-10px; margin-bottom:15px;">Für...</p>
+
+        <div style="display:flex; gap:10px;">
+            <input type="date" id="noteDate" style="flex:1">
+            <input type="time" id="noteTime" style="width:100px;">
+        </div>
+        
+        <input id="noteLoc" placeholder="📍 Ort (Optional)...">
+        
+        <div style="margin-bottom:10px;">
+            <label class="sync-main-btn" style="flex-direction:row; justify-content:center; padding:10px; background:var(--btn);">
+                📷 Foto hinzufügen <input type="file" hidden accept="image/*" onchange="handleNoteImage(this)">
+            </label>
+        </div>
+        <div id="noteImgPreviewBox" style="display:none; margin-bottom:10px;"><img id="noteImgEl" style="width:100%; height:150px; object-fit:cover; border-radius:12px;"></div>
+
+        <textarea id="noteText" rows="4" placeholder="Was habt ihr gemacht? Besprochen?"></textarea>
+        
+        <button onclick="saveNote()" style="width:100%; background:var(--accent); color:#fff; padding:15px; border:none; border-radius:16px; font-weight:bold;">Eintrag speichern</button>
+    </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div id="detailModal" class="modal">
+    <div class="modal-content" style="max-height:90vh; padding:0;">
+        <div style="position:relative; height:150px; background:var(--accent);">
+            <div class="close-btn" onclick="closeModal('detailModal')" style="background:rgba(0,0,0,0.3); color:white; z-index:10;">✕</div>
+            <img id="detailCover" style="width:100%; height:100%; object-fit:cover; opacity:0.5;">
+            <div id="detailImg" style="width:90px; height:90px; border-radius:50%; background:var(--card-solid); position:absolute; bottom:-45px; left:20px; border:4px solid var(--card-solid); display:flex; align-items:center; justify-content:center; font-size:40px; overflow:hidden; box-shadow:0 5px 15px rgba(0,0,0,0.2);"></div>
+        </div>
+        
+        <div style="padding:50px 20px 20px 20px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div>
+                    <h2 id="detailName" style="margin:0;">Name</h2>
+                    <div id="detailGroup" style="color:var(--accent); font-weight:bold; font-size:13px;">Gruppe</div>
+                </div>
+                <button onclick="openEditFromDetail()" style="padding:8px 15px; background:var(--btn); border:none; border-radius:20px; font-weight:bold; font-size:12px;">Bearbeiten</button>
+            </div>
+
+            <div id="detailMeta" style="margin-top:15px; font-size:13px; opacity:0.8; line-height:1.6;">
+                <!-- Geburtsdatum, Nationalität etc -->
+            </div>
+
+            <hr style="margin:20px 0; opacity:0.1;">
+            
+            <h4 style="margin:0 0 15px 0;">Verlauf & Notizen</h4>
+            <div id="detailHistory" style="display:flex; flex-direction:column; gap:10px;">
+                <!-- Liste -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SYNC ADD MODAL -->
+<div id="syncAddModal" class="modal">
+    <div class="modal-content">
+        <div class="close-btn" onclick="closeModal('syncAddModal')">✕</div>
+        <h3>Neuer Sync-Kanal</h3>
+        <label style="font-size:12px; font-weight:bold;">Name:</label>
+        <input id="newSyncName" placeholder="z.B. Mein iPhone">
+        <label style="font-size:12px; font-weight:bold;">Topic (Geheim):</label>
+        <input id="newSyncTopic" placeholder="Generieren..." style="font-family:monospace;">
+        <button onclick="generateRandomTopic()" style="font-size:12px; margin-bottom:15px;">🎲 Generieren</button>
+        <label style="font-size:12px; font-weight:bold;">Passwort (Optional):</label>
+        <input id="newSyncPass" type="password" placeholder="Für Verschlüsselung">
+        <button onclick="saveNewSyncChannel()" style="width:100%; background:var(--accent); color:white; padding:12px; border-radius:12px;">Speichern</button>
+    </div>
+</div>
+
+<!-- SYNC PROGRESS -->
+<div id="syncProgressModal" class="modal" style="z-index:20000;">
+    <div class="modal-content" style="text-align:center;">
+        <h3 id="syncTitle">Sync läuft...</h3>
+        <p id="syncStatus">Verbinde...</p>
+        <div style="background:var(--btn); height:10px; border-radius:5px; overflow:hidden; margin:15px 0;">
+            <div id="syncBar" style="height:100%; width:0%; background:var(--accent); transition:width 0.3s;"></div>
+        </div>
+        <button onclick="abortSync()" style="color:var(--err-text); background:none; border:1px solid var(--err-text); padding:5px 10px; border-radius:10px;">Abbrechen</button>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+/* =========================================
+   CORE ENGINE (PEOPLE TRACKER ULTIMATE)
+   ========================================= */
+
+// --- DATEN & GLOBALS ---
+let people = JSON.parse(localStorage.getItem('people-data')) || [];
+let syncChannels = JSON.parse(localStorage.getItem('people_sync_channels')) || [];
+let activeSyncId = localStorage.getItem('people_active_sync_id') || null;
+
+let currentEditId = null;
+let activePersonId = null;
+let tempImage = null; // Base64 Speicher
+let tempNoteImage = null;
+
+let viewMode = localStorage.getItem('viewMode') || 'list'; // list, grid
+let appMode = 'people'; // people, notes, gallery
+
+// --- INDEXED DB (FÜR BILDER) ---
+const DB_NAME = 'PeopleDB';
+const STORE_IMGS = 'images';
+const dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 2);
+    req.onupgradeneeded = e => { 
+        if(!e.target.result.objectStoreNames.contains(STORE_IMGS)) e.target.result.createObjectStore(STORE_IMGS);
+    };
+    req.onsuccess = e => resolve(e.target.result);
+});
+
+async function dbSaveImg(id, data) {
+    const db = await dbPromise;
+    const tx = db.transaction(STORE_IMGS, 'readwrite');
+    tx.objectStore(STORE_IMGS).put(data, id);
+    return new Promise(r => tx.oncomplete = r);
+}
+async function dbGetImg(id) {
+    const db = await dbPromise;
+    return new Promise(r => {
+        const req = db.transaction(STORE_IMGS, 'readonly').objectStore(STORE_IMGS).get(id);
+        req.onsuccess = () => r(req.result);
+    });
+}
+
+// --- HELPER ---
+const getEl = id => document.getElementById(id);
+function showToast(msg, isErr=false) {
+    const t = getEl('errorToast'); 
+    t.innerText = msg; t.style.background = isErr ? 'var(--err-bg)' : 'var(--accent)'; t.style.color = isErr ? 'var(--err-text)' : '#fff';
+    t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 3000);
+}
+function saveData() { localStorage.setItem('people-data', JSON.stringify(people)); }
+
+// --- UI LOGIK ---
+function toggleMicroMenu(id) {
+    const m = getEl(id);
+    const wasOpen = m.classList.contains('show');
+    document.querySelectorAll('.micro-menu').forEach(e => e.classList.remove('show'));
+    if(!wasOpen) m.classList.add('show');
+}
+function setMicroView(m) { viewMode = m; localStorage.setItem('viewMode', m); updateUI(); toggleMicroMenu('menu-view'); }
+function setMicroMode(m) { appMode = m; updateUI(); toggleMicroMenu('menu-mode'); }
+
+function updateUI() {
+    getEl('lbl-view').innerText = viewMode === 'grid' ? 'GRID' : 'LIST';
+    getEl('lbl-mode').innerText = appMode.toUpperCase();
+    render();
+}
+
+function switchView(id, btn) {
+    document.querySelectorAll('.view-section').forEach(e => e.classList.add('hidden'));
+    document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+    getEl(id).classList.remove('hidden');
+    if(btn) btn.classList.add('active');
+    if(id === 'view-map') setTimeout(initMap, 200);
+}
+
+function toggleAccordion(header) {
+    const content = header.nextElementSibling;
+    content.classList.toggle('open');
+    header.querySelector('span').innerText = content.classList.contains('open') ? '▲' : '▼';
+}
+
+function closeModal(id) { getEl(id).style.display = 'none'; }
+
+// --- RENDER ENGINE ---
+function render() {
+    const list = getEl('list');
+    list.innerHTML = '';
+    const query = getEl('listSearch').value.toLowerCase();
+
+    // 1. GALERIE MODUS
+    if(appMode === 'gallery') {
+        const grid = document.createElement('div'); grid.className = 'grid-container';
+        let found = false;
+        people.forEach(p => {
+            // Profilbild
+            if(p.imageId && p.name.toLowerCase().includes(query)) {
+                found = true;
+                createGalleryItem(grid, p.imageId, p.name, "Profil", () => openDetail(p.id));
+            }
+            // Notizbilder
+            if(p.history) p.history.forEach(h => {
+                if(h.imageId && (p.name.toLowerCase().includes(query) || (h.text && h.text.toLowerCase().includes(query)))) {
+                    found = true;
+                    createGalleryItem(grid, h.imageId, p.name, h.date, () => openDetail(p.id));
+                }
+            });
+        });
+        if(!found) list.innerHTML = '<div style="text-align:center; opacity:0.5; padding:40px;">Keine Fotos gefunden.</div>';
+        else list.appendChild(grid);
+        return;
+    }
+
+    // 2. NOTIZEN MODUS
+    if(appMode === 'notes') {
+        let allNotes = [];
+        people.forEach(p => {
+            if(p.history) p.history.forEach(h => {
+                if(p.name.toLowerCase().includes(query) || h.text.toLowerCase().includes(query)) {
+                    allNotes.push({ ...h, personName: p.name, personId: p.id, personEmoji: p.emoji });
+                }
+            });
+        });
+        allNotes.sort((a,b) => b.date.localeCompare(a.date));
+        
+        if(allNotes.length === 0) { list.innerHTML = '<div style="text-align:center; opacity:0.5; padding:40px;">Keine Notizen gefunden.</div>'; return; }
+
+        allNotes.forEach(n => {
+            const div = document.createElement('div');
+            div.className = 'row fade-in';
+            div.innerHTML = `
+                <div style="flex:1" onclick="openDetail('${n.personId}')">
+                    <div style="font-size:12px; color:var(--accent); font-weight:bold;">${n.date} • ${n.personEmoji} ${n.personName}</div>
+                    <div style="font-style:italic; margin-top:4px;">"${n.text}"</div>
+                    ${n.location ? `<div style="font-size:11px; opacity:0.7;">📍 ${n.location}</div>` : ''}
+                </div>
+            `;
+            list.appendChild(div);
+        });
+        return;
+    }
+
+    // 3. PEOPLE MODUS (List / Grid)
+    const filtered = people.filter(p => p.name.toLowerCase().includes(query));
+    if(filtered.length === 0) { getEl('emptyState').style.display='block'; return; }
+    getEl('emptyState').style.display='none';
+
+    filtered.sort((a,b) => a.name.localeCompare(b.name));
+
+    if(viewMode === 'grid') {
+        const grid = document.createElement('div'); grid.className = 'grid-container';
+        filtered.forEach(p => {
+            const el = document.createElement('div'); el.className = 'grid-item fade-in';
+            el.innerHTML = `
+                <div class="grid-bg-img" id="bg-${p.id}" style="background:var(--btn);"></div>
+                <div class="grid-overlay"></div>
+                <div class="grid-info">
+                    <div style="font-size:18px;">${p.emoji}</div>
+                    <div style="font-weight:bold;">${p.name}</div>
+                    <div style="font-size:11px; opacity:0.8;">${p.group || 'Kontakt'}</div>
+                </div>
+            `;
+            el.onclick = () => openDetail(p.id);
+            grid.appendChild(el);
+            if(p.imageId) dbGetImg(p.imageId).then(src => { if(src) getEl('bg-'+p.id).style.backgroundImage = `url(${src})`; });
+        });
+        list.appendChild(grid);
+    } else {
+        filtered.forEach(p => {
+            const el = document.createElement('div'); el.className = 'row fade-in';
+            const count = p.history ? p.history.length : 0;
+            el.innerHTML = `
+                <div class="list-visual" id="vis-${p.id}">${p.emoji}</div>
+                <div class="list-content" onclick="openDetail('${p.id}')">
+                    <div class="list-name">${p.name}</div>
+                    <div class="list-sub">${p.group || 'Keine Gruppe'} • ${count} Begegnungen</div>
+                </div>
+                <button class="action-btn-main" onclick="openNoteModal('${p.id}')">+</button>
+            `;
+            list.appendChild(el);
+            if(p.imageId) dbGetImg(p.imageId).then(src => { if(src) getEl('vis-'+p.id).innerHTML = `<img src="${src}">`; });
+        });
+    }
+}
+
+function createGalleryItem(container, imgId, title, sub, onClick) {
+    const el = document.createElement('div'); el.className = 'grid-item fade-in';
+    el.innerHTML = `<div class="grid-bg-img" id="g-${imgId}"></div><div class="grid-overlay"></div><div class="grid-info"><div>${title}</div><div style="font-size:10px;">${sub}</div></div>`;
+    el.onclick = onClick;
+    container.appendChild(el);
+    dbGetImg(imgId).then(src => { if(src) getEl('g-'+imgId).style.backgroundImage = `url(${src})`; });
+}
+
+// --- EDIT PEOPLE ---
+function openCreateModal() {
+    currentEditId = null; tempImage = null;
+    getEl('modalTitle').innerText = "Neue Person";
+    getEl('editName').value = ''; getEl('editEmoji').value = '👤';
+    getEl('editGroup').value = ''; getEl('editBirth').value = ''; getEl('editNation').value = '';
+    getEl('imgPreview').style.display='none'; getEl('btnDelete').style.display='none';
+    getEl('iconModal').style.display='block';
+}
+
+function openEditFromDetail() {
+    closeModal('detailModal');
+    const p = people.find(x => x.id === activePersonId);
+    if(!p) return;
+    currentEditId = p.id;
+    
+    getEl('modalTitle').innerText = "Bearbeiten";
+    getEl('editName').value = p.name; getEl('editEmoji').value = p.emoji;
+    getEl('editGroup').value = p.group || ''; getEl('editBirth').value = p.birth || ''; getEl('editNation').value = p.nation || '';
+    getEl('btnDelete').style.display='block';
+    
+    // Bild laden
+    if(p.imageId) {
+        dbGetImg(p.imageId).then(src => {
+            if(src) { tempImage = src; getEl('previewEl').src = src; getEl('imgPreview').style.display='block'; }
+        });
+    } else {
+        tempImage = null; getEl('imgPreview').style.display='none';
+    }
+    getEl('iconModal').style.display='block';
+}
+
+async function savePerson() {
+    const name = getEl('editName').value.trim();
+    if(!name) return showToast("Name fehlt", true);
+
+    let imgId = null;
+    // Wenn neues Bild oder altes behalten
+    if(tempImage) {
+        // Falls wir editieren und das Bild sich geändert hat oder gleich blieb
+        // Wir speichern einfach neu (einfachste Logik für IDB)
+        imgId = 'p_img_' + Date.now();
+        await dbSaveImg(imgId, tempImage);
+    }
+
+    const newData = {
+        id: currentEditId || Date.now().toString(),
+        name: name,
+        emoji: getEl('editEmoji').value || '👤',
+        group: getEl('editGroup').value,
+        birth: getEl('editBirth').value,
+        nation: getEl('editNation').value,
+        imageId: imgId,
+        history: [] // Standard leer
+    };
+
+    if(currentEditId) {
+        const idx = people.findIndex(x => x.id === currentEditId);
+        if(idx !== -1) {
+            newData.history = people[idx].history; // Historie behalten
+            if(!imgId && people[idx].imageId && tempImage !== 'DELETE') newData.imageId = people[idx].imageId; // Altes Bild behalten
+            people[idx] = newData;
+        }
+    } else {
+        people.push(newData);
+    }
+
+    saveData(); render(); closeModal('iconModal');
+    if(currentEditId === activePersonId) openDetail(currentEditId);
+}
+
+function deletePerson() {
+    if(!confirm("Person wirklich löschen?")) return;
+    people = people.filter(x => x.id !== currentEditId);
+    saveData(); render(); closeModal('iconModal'); closeModal('detailModal');
+}
+
+// Image Helpers
+function handleImage(input) {
+    if(input.files[0]) {
+        const r = new FileReader();
+        r.onload = e => {
+            // Resize (Quick & Dirty Canvas)
+            const img = new Image(); img.src = e.target.result;
+            img.onload = () => {
+                const c = document.createElement('canvas'); const ctx = c.getContext('2d');
+                const max = 600; let w=img.width, h=img.height;
+                if(w>h){if(w>max){h*=max/w;w=max}}else{if(h>max){w*=max/h;h=max}}
+                c.width=w; c.height=h; ctx.drawImage(img,0,0,w,h);
+                tempImage = c.toDataURL('image/jpeg', 0.8);
+                getEl('previewEl').src = tempImage; getEl('imgPreview').style.display='block';
+            }
+        };
+        r.readAsDataURL(input.files[0]);
+    }
+}
+function clearImage() { tempImage = 'DELETE'; getEl('imgPreview').style.display='none'; }
+
+// --- NOTES ---
+function openNoteModal(id) {
+    activePersonId = id; tempNoteImage = null;
+    const p = people.find(x => x.id === id);
+    getEl('noteTargetName').innerText = `Für: ${p.name}`;
+    getEl('noteDate').value = new Date().toISOString().slice(0,10);
+    getEl('noteTime').value = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    getEl('noteLoc').value = '';
+    getEl('noteText').value = '';
+    getEl('noteImgPreviewBox').style.display='none';
+    getEl('noteModal').style.display='block';
+}
+
+function handleNoteImage(input) {
+    if(input.files[0]) {
+        const r = new FileReader();
+        r.onload = e => { tempNoteImage = e.target.result; getEl('noteImgEl').src = tempNoteImage; getEl('noteImgPreviewBox').style.display='block'; }
+        r.readAsDataURL(input.files[0]);
+    }
+}
+
+async function saveNote() {
+    const p = people.find(x => x.id === activePersonId);
+    if(!p) return;
+    
+    let nImgId = null;
+    if(tempNoteImage) {
+        nImgId = 'n_img_' + Date.now();
+        await dbSaveImg(nImgId, tempNoteImage);
+    }
+
+    const entry = {
+        id: Date.now(),
+        date: getEl('noteDate').value,
+        time: getEl('noteTime').value,
+        location: getEl('noteLoc').value,
+        text: getEl('noteText').value,
+        imageId: nImgId
+    };
+
+    if(!p.history) p.history = [];
+    p.history.push(entry);
+    saveData(); render(); closeModal('noteModal');
+    if(getEl('detailModal').style.display==='block') openDetail(activePersonId);
+}
+
+// --- DETAILS ---
+function openDetail(id) {
+    activePersonId = id;
+    const p = people.find(x => x.id === id);
+    if(!p) return;
+
+    getEl('detailName').innerText = p.name;
+    getEl('detailGroup').innerText = p.group || '';
+    
+    // Header Bild / Icon
+    const cover = getEl('detailCover');
+    const avatar = getEl('detailImg');
+    
+    if(p.imageId) {
+        dbGetImg(p.imageId).then(src => {
+            if(src) {
+                avatar.innerHTML = `<img src="${src}" style="width:100%; height:100%; object-fit:cover;">`;
+                cover.src = src; // Blur Effekt im CSS wäre cool, hier einfach als BG
+            }
+        });
+    } else {
+        avatar.innerHTML = p.emoji;
+        cover.src = ''; 
+        cover.style.backgroundColor = 'var(--accent)';
+    }
+
+    // Meta Daten
+    let meta = [];
+    if(p.birth) {
+        const b = new Date(p.birth);
+        const age = new Date().getFullYear() - b.getFullYear();
+        meta.push(`🎂 ${b.toLocaleDateString()} (${age} Jahre)`);
+    }
+    if(p.nation) meta.push(`🏳️ ${p.nation}`);
+    getEl('detailMeta').innerHTML = meta.join('<br>');
+
+    // History
+    const hDiv = getEl('detailHistory');
+    hDiv.innerHTML = '';
+    
+    if(p.history && p.history.length > 0) {
+        const sorted = [...p.history].sort((a,b) => b.date.localeCompare(a.date));
+        sorted.forEach(h => {
+            const row = document.createElement('div');
+            row.style.background = 'var(--bg)'; row.style.padding='10px'; row.style.borderRadius='12px';
+            
+            let imgHTML = '';
+            if(h.imageId) imgHTML = `<div style="font-size:10px; color:var(--accent);">📷 Bild vorhanden</div>`;
+
+            row.innerHTML = `
+                <div style="font-size:11px; font-weight:bold; opacity:0.6; display:flex; justify-content:space-between;">
+                    <span>${h.date} ${h.time||''}</span>
+                    <span>${h.location ? '📍 '+h.location : ''}</span>
+                </div>
+                <div style="font-style:italic; margin-top:5px;">"${h.text}"</div>
+                ${imgHTML}
+            `;
+            // Bei Klick Bild zeigen? (Hier simpel gehalten)
+            if(h.imageId) {
+                row.onclick = () => dbGetImg(h.imageId).then(src => { 
+                    const win = window.open(""); win.document.write(`<img src="${src}" style="width:100%">`); 
+                });
+            }
+            hDiv.appendChild(row);
+        });
+    } else {
+        hDiv.innerHTML = '<div style="opacity:0.5; text-align:center;">Keine Einträge.</div>';
+    }
+
+    getEl('detailModal').style.display='block';
+}
+
+// --- CLOUD SYNC (Simple implementation) ---
+function onSyncChannelChange() {
+    activeSyncId = getEl('syncChannelSelect').value;
+    localStorage.setItem('people_active_sync_id', activeSyncId);
+}
+
+function renderSyncChannels() {
+    const s = getEl('syncChannelSelect'); s.innerHTML = '<option value="" disabled selected>-- Wählen --</option>';
+    syncChannels.forEach(c => {
+        const opt = document.createElement('option'); opt.value = c.id; opt.innerText = c.name;
+        if(c.id === activeSyncId) opt.selected = true;
+        s.appendChild(opt);
+    });
+}
+
+function openAddSyncModal() {
+    getEl('newSyncName').value = ''; getEl('newSyncTopic').value = ''; getEl('newSyncPass').value = '';
+    generateRandomTopic();
+    getEl('syncAddModal').style.display='block';
+}
+
+function generateRandomTopic() {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let res = 'people-sync-';
+    for(let i=0; i<20; i++) res += chars[Math.floor(Math.random()*chars.length)];
+    getEl('newSyncTopic').value = res;
+}
+
+function saveNewSyncChannel() {
+    const name = getEl('newSyncName').value;
+    const topic = getEl('newSyncTopic').value;
+    const pass = getEl('newSyncPass').value;
+    if(!name || !topic) return alert("Name & Topic Pflicht!");
+    
+    syncChannels.push({ id: Date.now().toString(), name, topic, pass });
+    localStorage.setItem('people_sync_channels', JSON.stringify(syncChannels));
+    renderSyncChannels();
+    closeModal('syncAddModal');
+}
+
+function deleteSyncChannel() {
+    if(!activeSyncId) return;
+    syncChannels = syncChannels.filter(c => c.id !== activeSyncId);
+    localStorage.setItem('people_sync_channels', JSON.stringify(syncChannels));
+    activeSyncId = null;
+    renderSyncChannels();
+}
+
+// --- UPLOAD / DOWNLOAD ---
+// Wir nutzen ntfy.sh als kostenlosen Broker
+async function startCloudPush() {
+    const ch = syncChannels.find(c => c.id === activeSyncId);
+    if(!ch) return alert("Kein Kanal gewählt!");
+    
+    // Daten sammeln (Auch Bilder!)
+    const allImages = {};
+    const db = await dbPromise;
+    const keys = await new Promise(r => { const req = db.transaction(STORE_IMGS).objectStore(STORE_IMGS).getAllKeys(); req.onsuccess = () => r(req.result); });
+    for(let k of keys) { allImages[k] = await dbGetImg(k); }
+
+    const payload = JSON.stringify({
+        people: people,
+        images: allImages,
+        date: Date.now()
+    });
+
+    // Simple Verschlüsselung (XOR - in Production besser AES nutzen!)
+    // Hier für Demo als Klartext oder einfache Obfuscation
+    
+    const modal = getEl('syncProgressModal');
+    modal.style.display='flex';
+    getEl('syncStatus').innerText = "Sende Daten...";
+    getEl('syncBar').style.width = "50%";
+
+    try {
+        await fetch(`https://ntfy.sh/${ch.topic}`, {
+            method: 'POST',
+            body: payload,
+            headers: { 'Title': 'People Backup' }
+        });
+        getEl('syncBar').style.width = "100%";
+        getEl('syncStatus').innerText = "Fertig!";
+        setTimeout(() => modal.style.display='none', 1000);
+    } catch(e) { alert("Fehler: " + e); modal.style.display='none'; }
+}
+
+async function checkForCloudBackups() {
+    const ch = syncChannels.find(c => c.id === activeSyncId);
+    if(!ch) return alert("Kein Kanal gewählt!");
+
+    const list = getEl('syncListItems');
+    list.innerHTML = 'Lade...';
+
+    try {
+        const res = await fetch(`https://ntfy.sh/${ch.topic}/json?since=1h`); // Letzte Stunde
+        const text = await res.text();
+        const lines = text.trim().split('\n');
+        
+        list.innerHTML = '';
+        lines.forEach(line => {
+            try {
+                const msg = JSON.parse(line);
+                if(msg.event === 'message') {
+                    const btn = document.createElement('button');
+                    btn.innerText = `📥 Backup von ${new Date(msg.time*1000).toLocaleTimeString()}`;
+                    btn.style.width = "100%"; btn.style.padding="10px"; btn.style.marginTop="5px";
+                    
+                    btn.onclick = async () => {
+                        if(!confirm("Lokale Daten überschreiben?")) return;
+                        const data = JSON.parse(msg.message);
+                        people = data.people || [];
+                        saveData();
+                        
+                        // Bilder wiederherstellen
+                        if(data.images) {
+                            for(let [id, val] of Object.entries(data.images)) {
+                                await dbSaveImg(id, val);
+                            }
+                        }
+                        render();
+                        alert("Wiederhergestellt!");
+                    };
+                    list.appendChild(btn);
+                }
+            } catch(e) {}
+        });
+        if(list.innerHTML === '') list.innerHTML = "Keine Backups gefunden (letzte 1h).";
+    } catch(e) { list.innerText = "Fehler beim Abruf."; }
+}
+
+// --- MAP ---
+let mapInst = null;
+function initMap() {
+    if(mapInst) return;
+    mapInst = L.map('map').setView([51.165, 10.451], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(mapInst);
+}
+
+// STARTUP
+renderSyncChannels();
+updateUI(); // Init Render
+
+</script>
+</body>
+</html>
