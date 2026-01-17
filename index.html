@@ -1327,65 +1327,68 @@ savePerson = function() {
     originalSavePerson(); // Alte Funktion ausführen
     scheduleAllBirthdays(); // Danach Reminder updaten
 };
-    
-/* === NOTIFICATION LOGIC === */
+/* === NOTIFICATION LOGIC (ROBUST) === */
 
 // 1. Erlaubnis holen
 async function requestNotifyPermission() {
     if (!('Notification' in window)) {
-        alert("Dieser Browser unterstützt keine Benachrichtigungen.");
+        alert("Dein Browser unterstützt gar keine Benachrichtigungen.");
         return;
     }
 
-    const permission = await Notification.requestPermission();
-    
-    if (permission === 'granted') {
-        showToast("Erlaubnis erteilt! ✅");
-        // Wenn vorhanden, planen wir sofort alle Geburtstage neu
+    // Status prüfen
+    if (Notification.permission === 'granted') {
+        alert("Bereits erlaubt! ✅\n(Chrome hat sich deine Entscheidung von früher gemerkt.)");
+        // Update Trigger
         if(typeof scheduleAllBirthdays === 'function') scheduleAllBirthdays();
+    } else if (Notification.permission === 'denied') {
+        alert("Blockiert! 🚫\nDu musst in die Browser-Einstellungen (Schloss-Symbol 🔒) und Benachrichtigungen manuell zulassen.");
     } else {
-        alert("Benachrichtigungen wurden blockiert/abgelehnt.");
-    }
-}
-
-// 2. Test-Nachricht senden
-async function sendTestNotification() {
-    if (Notification.permission !== 'granted') {
-        alert("Bitte erst oben auf 'Erlaubnis anfragen' klicken!");
-        return;
-    }
-
-    // Service Worker holen
-    const reg = await navigator.serviceWorker.getReady();
-    if (!reg) return alert("Service Worker nicht bereit (App nicht installiert?).");
-
-    // Zeitstempel: Jetzt + 10 Sekunden
-    const triggerTime = Date.now() + 10000; 
-
-    // Feature Check: Unterstützt der Browser Zeit-Trigger?
-    if ('showTrigger' in Notification.prototype) {
-        try {
-            await reg.showNotification("People Tracker Test", {
-                body: "Es funktioniert! 🥳 (Hintergrund-Test)",
-                icon: 'https://emojicdn.elk.sh/🔔',
-                tag: 'test-notification',
-                // DAS HIER ist der Schlüssel für Offline/Hintergrund:
-                showTrigger: new TimestampTrigger(triggerTime)
-            });
-            
-            alert("Test geplant in 10 Sekunden!\n\n👉 Schließe JETZT die App (Home-Button) und warte.");
-            
-        } catch (e) {
-            alert("Fehler beim Planen (Hast du Chrome Flags aktiviert?): " + e.message);
+        // Fragen
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            showToast("Juhu! Erlaubt! ✅");
+            if(typeof scheduleAllBirthdays === 'function') scheduleAllBirthdays();
+        } else {
+            alert("Schade. Ohne Erlaubnis kein Alarm.");
         }
-    } else {
-        // Fallback für Browser ohne Trigger (sendet sofort)
-        await reg.showNotification("Test (Sofort)", {
-            body: "Dein Browser unterstützt keine Zeit-Trigger, daher kommt das sofort.",
-            icon: 'https://emojicdn.elk.sh/⚠️'
-        });
     }
 }
+
+// 2. Test-Nachricht senden (Mit Sicherheits-Check)
+async function sendTestNotification() {
+    // A) Basis Checks
+    if (Notification.permission !== 'granted') {
+        return alert("Fehler: Keine Erlaubnis. Bitte erst oben den Knopf drücken.");
+    }
+
+    const reg = await navigator.serviceWorker.getReady();
+    if (!reg) return alert("Fehler: Service Worker läuft nicht. App installiert?");
+
+    // B) Feature Check (Das ist der Fix!)
+    // Wir prüfen, ob 'TimestampTrigger' überhaupt existiert
+    if (!('TimestampTrigger' in window)) {
+        return alert("⚠️ FEHLER: Dein Browser kennt 'TimestampTrigger' nicht.\n\nHast du unter chrome://flags die 'Notification Triggers' aktiviert?\nOhne das geht der Hintergrund-Alarm nicht.");
+    }
+
+    // C) Senden
+    try {
+        const triggerTime = Date.now() + 10000; // In 10 Sekunden
+        
+        await reg.showNotification("People Tracker Test", {
+            body: "🔔 Es funktioniert! (Hintergrund-Test)",
+            icon: 'https://emojicdn.elk.sh/✅',
+            tag: 'test-alarm-' + Date.now(),
+            showTrigger: new TimestampTrigger(triggerTime)
+        });
+        
+        alert("✅ Test geplant!\n\nDrücke jetzt SOFORT den Home-Button (App schließen) und warte 10 Sekunden.");
+        
+    } catch (e) {
+        alert("Unbekannter Fehler beim Planen:\n" + e.message);
+    }
+}
+    
     
 // START
 renderSyncChannels();
