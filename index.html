@@ -308,6 +308,22 @@ body:not(.dark) .nav-island { background: rgba(255, 255, 255, 0.9); border: 1px 
             <input type="checkbox" id="darkToggle" onchange="toggleDarkMode()" style="width:auto; margin:0;">
         </div>
     </div>
+    <!-- BENACHRICHTIGUNGEN -->
+<div class="card-section" style="border-color: #fdcb6e; margin-top: 20px;">
+    <h3 style="color:#fd79a8;">🔔 Erinnerungen</h3>
+    <p style="font-size:12px; opacity:0.8; margin-bottom:15px;">
+        Erinnert dich an Geburtstage (auch wenn die App zu ist).
+        <br><i>(Erfordert Chrome Flags "Notification Triggers")</i>
+    </p>
+
+    <button onclick="requestNotifyPermission()" style="width:100%; padding:12px; background:var(--accent); color:white; border:none; border-radius:12px; font-weight:bold; margin-bottom:10px;">
+        🔑 Erlaubnis anfragen
+    </button>
+
+    <button onclick="sendTestNotification()" style="width:100%; padding:12px; background:transparent; border:1px solid var(--text); color:var(--text); border-radius:12px; font-weight:bold;">
+        🧪 Test-Alarm (in 10 Sek.)
+    </button>
+</div>
 
     <!-- CLOUD SYNC MANAGER (Original Complex Engine) -->
     <div class="card-section sync-card">
@@ -1312,7 +1328,65 @@ savePerson = function() {
     scheduleAllBirthdays(); // Danach Reminder updaten
 };
     
+/* === NOTIFICATION LOGIC === */
 
+// 1. Erlaubnis holen
+async function requestNotifyPermission() {
+    if (!('Notification' in window)) {
+        alert("Dieser Browser unterstützt keine Benachrichtigungen.");
+        return;
+    }
+
+    const permission = await Notification.requestPermission();
+    
+    if (permission === 'granted') {
+        showToast("Erlaubnis erteilt! ✅");
+        // Wenn vorhanden, planen wir sofort alle Geburtstage neu
+        if(typeof scheduleAllBirthdays === 'function') scheduleAllBirthdays();
+    } else {
+        alert("Benachrichtigungen wurden blockiert/abgelehnt.");
+    }
+}
+
+// 2. Test-Nachricht senden
+async function sendTestNotification() {
+    if (Notification.permission !== 'granted') {
+        alert("Bitte erst oben auf 'Erlaubnis anfragen' klicken!");
+        return;
+    }
+
+    // Service Worker holen
+    const reg = await navigator.serviceWorker.getReady();
+    if (!reg) return alert("Service Worker nicht bereit (App nicht installiert?).");
+
+    // Zeitstempel: Jetzt + 10 Sekunden
+    const triggerTime = Date.now() + 10000; 
+
+    // Feature Check: Unterstützt der Browser Zeit-Trigger?
+    if ('showTrigger' in Notification.prototype) {
+        try {
+            await reg.showNotification("People Tracker Test", {
+                body: "Es funktioniert! 🥳 (Hintergrund-Test)",
+                icon: 'https://emojicdn.elk.sh/🔔',
+                tag: 'test-notification',
+                // DAS HIER ist der Schlüssel für Offline/Hintergrund:
+                showTrigger: new TimestampTrigger(triggerTime)
+            });
+            
+            alert("Test geplant in 10 Sekunden!\n\n👉 Schließe JETZT die App (Home-Button) und warte.");
+            
+        } catch (e) {
+            alert("Fehler beim Planen (Hast du Chrome Flags aktiviert?): " + e.message);
+        }
+    } else {
+        // Fallback für Browser ohne Trigger (sendet sofort)
+        await reg.showNotification("Test (Sofort)", {
+            body: "Dein Browser unterstützt keine Zeit-Trigger, daher kommt das sofort.",
+            icon: 'https://emojicdn.elk.sh/⚠️'
+        });
+    }
+}
+    
 // START
 renderSyncChannels();
 render();
