@@ -1215,6 +1215,104 @@ window.setMicroMode = function(mode) {
 };
 
 
+
+
+/* =========================================
+   SCHRITT 2: BACKGROUND NOTIFICATIONS ENGINE
+   ========================================= */
+
+// 1. Service Worker registrieren (Startet die Engine)
+if ('serviceWorker' in navigator && 'Notification' in window) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+            .then(reg => console.log('Service Worker OK:', reg.scope))
+            .catch(err => console.log('Service Worker Fehler:', err));
+    });
+}
+
+// 2. Erlaubnis anfordern (Muss durch Klick ausgelöst werden!)
+async function enableNotifications() {
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') {
+        showToast("Erinnerungen aktiviert! 🔔");
+        scheduleAllBirthdays(); // Sofort alle planen
+    } else {
+        alert("Benachrichtigungen wurden blockiert. Bitte in den Android-Einstellungen erlauben.");
+    }
+}
+
+// 3. Erinnerungen planen (Die Magie)
+async function scheduleAllBirthdays() {
+    if (Notification.permission !== 'granted') return;
+
+    const reg = await navigator.serviceWorker.getReady();
+    
+    // Prüfen ob das Feature unterstützt wird (Notification Triggers)
+    if (!('showTrigger' in Notification.prototype)) {
+        console.warn("Notification Triggers werden von diesem Browser nicht unterstützt.");
+        // Fallback: Wir tun nichts, da wir offline nichts tun können.
+        return;
+    }
+
+    const now = new Date();
+    let count = 0;
+
+    // Durch alle Personen loopen
+    for (const p of people) {
+        if (!p.birth) continue; // Kein Geburtstag, keine Party
+
+        const bDate = new Date(p.birth);
+        const thisYear = now.getFullYear();
+        
+        // Nächsten Geburtstag berechnen
+        let nextBday = new Date(thisYear, bDate.getMonth(), bDate.getDate(), 9, 0, 0); // Immer 09:00 Uhr
+        if (nextBday < now) {
+            nextBday.setFullYear(thisYear + 1); // War schon, also nächstes Jahr
+        }
+
+        // --- TRIGGER SETZEN ---
+        // Wir planen: 7 Tage vorher, 3 Tage vorher, 1 Tag vorher
+        
+        const offsets = [
+            { days: 7, text: `Bald ist soweit! ${p.name} hat in einer Woche Geburtstag 🎁` },
+            { days: 3, text: `Nicht vergessen: ${p.name} hat in 3 Tagen Geburtstag! 🎂` },
+            { days: 1, text: `Morgen! ${p.name} hat morgen Geburtstag! 🎉` },
+            { days: 0, text: `Heute! Alles Gute an ${p.name}! 🥳` }
+        ];
+
+        for (const off of offsets) {
+            // Zeit berechnen
+            const triggerTime = new Date(nextBday.getTime() - (off.days * 24 * 60 * 60 * 1000));
+            
+            // Nur planen, wenn der Termin in der Zukunft liegt
+            if (triggerTime > now) {
+                try {
+                    await reg.showNotification("People Tracker", {
+                        body: off.text,
+                        icon: 'https://emojicdn.elk.sh/🎂', // Oder dein App Icon
+                        tag: `bday-${p.id}-${off.days}`, // Eindeutige ID, damit wir nicht doppelt planen
+                        showTrigger: new TimestampTrigger(triggerTime.getTime()) // DAS ist der Schlüssel für Offline!
+                    });
+                    count++;
+                } catch (e) {
+                    console.error("Fehler beim Planen:", e);
+                }
+            }
+        }
+    }
+    console.log(`${count} Erinnerungen im System hinterlegt.`);
+}
+
+// 4. Hook in die Speicher-Funktion
+// Wir erweitern die bestehende savePerson Funktion, damit beim Speichern 
+// sofort die Erinnerungen aktualisiert werden.
+const originalSavePerson = savePerson;
+savePerson = function() {
+    originalSavePerson(); // Alte Funktion ausführen
+    scheduleAllBirthdays(); // Danach Reminder updaten
+};
+    
+
 // START
 renderSyncChannels();
 render();
