@@ -319,10 +319,10 @@ body:not(.dark) .nav-island { background: rgba(255, 255, 255, 0.9); border: 1px 
     <button onclick="requestNotifyPermission()" style="width:100%; padding:12px; background:var(--accent); color:white; border:none; border-radius:12px; font-weight:bold; margin-bottom:10px;">
         🔑 Erlaubnis anfragen
     </button>
-
-    <button onclick="sendTestNotification()" style="width:100%; padding:12px; background:transparent; border:1px solid var(--text); color:var(--text); border-radius:12px; font-weight:bold;">
-        🧪 Test-Alarm (in 10 Sek.)
-    </button>
+<button onclick="sendTestNotification()" style="width:100%; padding:15px; background:var(--bg); border:2px solid var(--text); color:var(--text); border-radius:12px; font-weight:bold; margin-top:15px;">
+    🧪 TEST ALARM (Klick mich)
+</button>
+    
 </div>
 
     <!-- CLOUD SYNC MANAGER (Original Complex Engine) -->
@@ -1328,67 +1328,77 @@ savePerson = function() {
     scheduleAllBirthdays(); // Danach Reminder updaten
 };
 /* === NOTIFICATION LOGIC (ROBUST) === */
+    
+
+   /* === DEBUGGING NOTIFICATION SYSTEM === */
 
 // 1. Erlaubnis holen
-async function requestNotifyPermission() {
+window.requestNotifyPermission = async function() {
+    alert("Starte Anfrage..."); // DEBUG
+    
     if (!('Notification' in window)) {
-        alert("Dein Browser unterstützt gar keine Benachrichtigungen.");
+        alert("Fehler: Dein Browser kennt keine Notifications.");
         return;
     }
 
-    // Status prüfen
-    if (Notification.permission === 'granted') {
-        alert("Bereits erlaubt! ✅\n(Chrome hat sich deine Entscheidung von früher gemerkt.)");
-        // Update Trigger
-        if(typeof scheduleAllBirthdays === 'function') scheduleAllBirthdays();
-    } else if (Notification.permission === 'denied') {
-        alert("Blockiert! 🚫\nDu musst in die Browser-Einstellungen (Schloss-Symbol 🔒) und Benachrichtigungen manuell zulassen.");
-    } else {
-        // Fragen
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-            showToast("Juhu! Erlaubt! ✅");
-            if(typeof scheduleAllBirthdays === 'function') scheduleAllBirthdays();
-        } else {
-            alert("Schade. Ohne Erlaubnis kein Alarm.");
-        }
-    }
-}
-
-// 2. Test-Nachricht senden (Mit Sicherheits-Check)
-async function sendTestNotification() {
-    // A) Basis Checks
-    if (Notification.permission !== 'granted') {
-        return alert("Fehler: Keine Erlaubnis. Bitte erst oben den Knopf drücken.");
-    }
-
-    const reg = await navigator.serviceWorker.getReady();
-    if (!reg) return alert("Fehler: Service Worker läuft nicht. App installiert?");
-
-    // B) Feature Check (Das ist der Fix!)
-    // Wir prüfen, ob 'TimestampTrigger' überhaupt existiert
-    if (!('TimestampTrigger' in window)) {
-        return alert("⚠️ FEHLER: Dein Browser kennt 'TimestampTrigger' nicht.\n\nHast du unter chrome://flags die 'Notification Triggers' aktiviert?\nOhne das geht der Hintergrund-Alarm nicht.");
-    }
-
-    // C) Senden
     try {
-        const triggerTime = Date.now() + 10000; // In 10 Sekunden
+        const permission = await Notification.requestPermission();
+        alert("Status jetzt: " + permission);
+        
+        if (permission === 'granted' && typeof scheduleAllBirthdays === 'function') {
+            scheduleAllBirthdays();
+        }
+    } catch (e) {
+        alert("Fehler bei Anfrage: " + e.message);
+    }
+};
+
+// 2. Test-Alarm senden (Mit Debug-Alerts)
+window.sendTestNotification = async function() {
+    alert("Button wurde geklickt!"); // DEBUG: Kommt das?
+
+    // Check 1: Erlaubnis
+    if (Notification.permission !== 'granted') {
+        alert("Stopp: Keine Erlaubnis. Bitte erst oben den Knopf drücken.");
+        return;
+    }
+
+    // Check 2: Service Worker
+    const reg = await navigator.serviceWorker.getReady();
+    if (!reg) {
+        alert("Stopp: Service Worker nicht bereit. Ist die App installiert?");
+        return;
+    }
+
+    // Check 3: TimestampTrigger Support (Das Flags-Problem)
+    if (!('TimestampTrigger' in window)) {
+        alert("⚠️ ACHTUNG: 'TimestampTrigger' fehlt!\n\nDu musst in chrome://flags gehen und 'Notification Triggers' aktivieren.\n\nIch sende jetzt einen SOFORT-Test als Fallback.");
+        
+        // Fallback: Sofort senden
+        reg.showNotification("Sofort-Test", {
+            body: "Trigger fehlen, daher kommt das sofort.",
+            icon: "https://emojicdn.elk.sh/⚠️"
+        });
+        return;
+    }
+
+    // Check 4: Versuch zu planen
+    try {
+        const triggerTime = Date.now() + 10000; // 10 Sekunden
         
         await reg.showNotification("People Tracker Test", {
-            body: "🔔 Es funktioniert! (Hintergrund-Test)",
-            icon: 'https://emojicdn.elk.sh/✅',
-            tag: 'test-alarm-' + Date.now(),
+            body: "Es hat geklappt! 🔔 (Hintergrund-Test)",
+            icon: "https://emojicdn.elk.sh/✅",
+            tag: "test-" + Date.now(),
             showTrigger: new TimestampTrigger(triggerTime)
         });
         
-        alert("✅ Test geplant!\n\nDrücke jetzt SOFORT den Home-Button (App schließen) und warte 10 Sekunden.");
+        alert("✅ ALARM GEPLANT!\n\nDrücke jetzt SOFORT den Home-Button (App schließen) und warte 10 Sekunden.");
         
     } catch (e) {
-        alert("Unbekannter Fehler beim Planen:\n" + e.message);
+        alert("CRASH beim Planen: " + e.message);
     }
-}
-    
+}; 
     
 // START
 renderSyncChannels();
